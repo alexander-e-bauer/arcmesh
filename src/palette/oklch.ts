@@ -82,3 +82,31 @@ export function rgbToHex({ r, g, b }: Rgb): string {
 export function oklchToHex(color: Oklch): string {
   return rgbToHex(oklchToSrgb(color));
 }
+
+const GAMUT_EPSILON = 1e-6;
+const CLAMP_ITERATIONS = 20;
+
+export function inGamut({ r, g, b }: Rgb): boolean {
+  return [r, g, b].every((value) => value >= -GAMUT_EPSILON && value <= 1 + GAMUT_EPSILON);
+}
+
+// Binary search chroma downward with lightness and hue fixed. Chroma 0 is
+// always representable for lightness strictly between 0 and 1, so the lower
+// bound starts in gamut and stays there.
+export function clampChroma(color: Oklch): Oklch {
+  if (color.l <= 0) return { l: 0, c: 0, h: color.h };
+  if (color.l >= 1) return { l: 1, c: 0, h: color.h };
+  if (inGamut(oklchToSrgb(color))) return color;
+
+  let low = 0;
+  let high = color.c;
+  for (let i = 0; i < CLAMP_ITERATIONS; i++) {
+    const mid = (low + high) / 2;
+    if (inGamut(oklchToSrgb({ ...color, c: mid }))) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+  return { ...color, c: low };
+}

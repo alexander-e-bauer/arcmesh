@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { oklchToHex, oklchToSrgb, rgbToHex, srgbToOklch, wrapHue } from './oklch';
+import { clampChroma, inGamut, oklchToHex, oklchToSrgb, rgbToHex, srgbToOklch, wrapHue } from './oklch';
 
 describe('wrapHue', () => {
   it('maps any angle into [0, 360)', () => {
@@ -96,5 +96,45 @@ describe('hex output', () => {
   it('converts OKLCH straight to hex', () => {
     expect(oklchToHex({ l: 1, c: 0, h: 0 })).toBe('#ffffff');
     expect(oklchToHex({ l: 0, c: 0, h: 0 })).toBe('#000000');
+  });
+});
+
+describe('inGamut', () => {
+  it('accepts channels inside [0, 1] and tolerates float noise at the edges', () => {
+    expect(inGamut({ r: 0, g: 0.5, b: 1 })).toBe(true);
+    expect(inGamut({ r: 1.0000000001, g: 0, b: -0.0000000001 })).toBe(true);
+  });
+
+  it('rejects channels clearly outside [0, 1]', () => {
+    expect(inGamut({ r: 1.01, g: 0, b: 0 })).toBe(false);
+    expect(inGamut({ r: 0, g: -0.01, b: 0 })).toBe(false);
+  });
+});
+
+describe('clampChroma', () => {
+  it('returns the color unchanged when it is already in gamut', () => {
+    const color = { l: 0.5, c: 0.05, h: 120 };
+    expect(clampChroma(color)).toEqual(color);
+  });
+
+  it('reduces chroma until the color fits, holding lightness and hue', () => {
+    for (const h of [0, 45, 90, 135, 180, 225, 270, 315]) {
+      const out = clampChroma({ l: 0.5, c: 0.4, h });
+      expect(inGamut(oklchToSrgb(out))).toBe(true);
+      expect(out.c).toBeLessThan(0.4);
+      expect(out.c).toBeGreaterThan(0.03);
+      expect(out.l).toBe(0.5);
+      expect(out.h).toBe(h);
+    }
+  });
+
+  it('lands close to the gamut boundary', () => {
+    const out = clampChroma({ l: 0.5, c: 0.4, h: 30 });
+    expect(inGamut(oklchToSrgb({ ...out, c: out.c + 0.002 }))).toBe(false);
+  });
+
+  it('drops chroma entirely at the ends of the lightness range', () => {
+    expect(clampChroma({ l: 0, c: 0.2, h: 30 })).toEqual({ l: 0, c: 0, h: 30 });
+    expect(clampChroma({ l: 1, c: 0.2, h: 30 })).toEqual({ l: 1, c: 0, h: 30 });
   });
 });

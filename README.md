@@ -12,11 +12,13 @@ Mesh gradient tools usually make you pick the colors, which is the hard part. Th
 
 arcmesh picks hues on one arc of the color wheel, 30 to 90 degrees wide, assigns lightness along a ramp so every mesh has a bright region and a deep region, and lets an occasional accent sit opposite the arc at reduced chroma so it blends without going muddy. Everything happens in OKLCH, where equal numeric steps read as equal visual steps, and every color is clamped into the sRGB gamut by binary search on chroma rather than by clipping channels.
 
+Some palettes carry a crease, the fold a real mesh gradient makes: a hard curved edge on one side of a color region, soft on the others. Each crease is one more radial gradient, an ellipse of the stop's color centered off the canvas with a hard stop at its edge, so it is still plain CSS.
+
 The preview is a stack of CSS radial-gradients applied through a style element, and the copied CSS is that same string. What you see is what you paste.
 
 ## Use
 
-Space or the Randomize button rerolls every unlocked stop. Click a swatch to lock it. Drag a blob to move it. Copy CSS copies the declarations. The URL hash holds the whole palette, so a link reproduces it.
+Space or the Randomize button rerolls every unlocked stop, creases included. Click a swatch to lock it, and its crease stays with it. Drag a blob to move it. Copy CSS copies the declarations. Download PNG renders the same layers to a canvas at a preset or custom size, up to 8192 pixels a side. The URL hash holds the whole palette, so a link reproduces it.
 
 ## Run
 
@@ -35,7 +37,7 @@ No backend, no environment variables, no accounts. It deploys as a static site.
 
 `src/palette` is the engine: a seeded generator, the OKLCH math, the harmony rules, and the URL codec. It imports nothing from React or the DOM and is tested directly, including a property test that generates a thousand palettes and guards that every color is in gamut and every palette honors the arc rule.
 
-`src/render/css.ts` turns a palette into CSS. `src/components` and `src/App.tsx` are the React shell.
+`src/render/layers.ts` describes a palette as one ordered list of radial-gradient layers; `src/render/css.ts` emits that list as CSS and `src/render/canvas.ts` draws it to a canvas for the PNG, so the preview and the download cannot drift apart. `src/components` and `src/App.tsx` are the React shell.
 
 The OKLCH to sRGB conversion is written out rather than imported. It is about sixty lines, uses the standard Ottosson coefficients, and is tested against published values for the sRGB primaries.
 

@@ -2,13 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   ARC_MAX,
   bandWeight,
-  LIGHTNESS_JITTER,
-  LIGHTNESS_MIN,
   BAND_LIFT_MIN,
   CREASE_MAX,
   generatePalette,
+  LIGHTNESS_JITTER,
+  LIGHTNESS_MIN,
+  pickHues,
+  pickStopCount,
+  type Palette,
 } from './harmony';
 import { inGamut, oklchToSrgb } from './oklch';
+import { createRng } from './rng';
 
 // Smallest arc that contains every hue: 360 minus the largest gap between
 // neighbors on the circle.
@@ -29,11 +33,12 @@ function fitsArc(hues: number[], maxArc: number): boolean {
   return hues.some((_, skip) => arcSpan(hues.filter((_, i) => i !== skip)) <= maxArc);
 }
 
-// The one stop whose removal makes the rest fit the arc, or -1 when they
-// already fit. Mirrors how the generator placed the accent.
-function accentOf(hues: number[], maxArc: number): number {
-  if (arcSpan(hues) <= maxArc) return -1;
-  return hues.findIndex((_, skip) => arcSpan(hues.filter((_, i) => i !== skip)) <= maxArc);
+// The generator's own accent index, rebuilt from the seed the way
+// generatePalette draws it: the stop count first, then the hues.
+function accentOf(palette: Palette): number {
+  const rng = createRng(palette.seed);
+  pickStopCount(rng);
+  return pickHues(rng, palette.stops.length).accentIndex;
 }
 
 describe('a thousand generated palettes', () => {
@@ -57,7 +62,7 @@ describe('a thousand generated palettes', () => {
   it('always have a bright region and a deep region, allowing for the yellow lift', () => {
     for (const palette of palettes) {
       const hues = palette.stops.map((stop) => stop.h);
-      const accent = accentOf(hues, ARC_MAX + 1e-6);
+      const accent = accentOf(palette);
       const w = Math.max(0, ...hues.filter((_, i) => i !== accent).map(bandWeight));
       const lightness = palette.stops.map((stop) => stop.l);
       expect(Math.max(...lightness) - Math.min(...lightness)).toBeGreaterThanOrEqual(0.3 - 0.1 * w - 1e-9);
@@ -66,8 +71,7 @@ describe('a thousand generated palettes', () => {
 
   it('never leave a yellow palette in the brown band', () => {
     for (const palette of palettes) {
-      const hues = palette.stops.map((stop) => stop.h);
-      const accent = accentOf(hues, ARC_MAX + 1e-6);
+      const accent = accentOf(palette);
       const others = palette.stops.filter((_, i) => i !== accent);
       const w = Math.max(0, ...others.map((stop) => bandWeight(stop.h)));
       const floor = LIGHTNESS_MIN + BAND_LIFT_MIN * w - LIGHTNESS_JITTER - 1e-9;

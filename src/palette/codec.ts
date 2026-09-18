@@ -67,6 +67,7 @@ export function decodePalette(encoded: string): Palette | null {
       creases.push(crease);
     }
   }
+  if (new Set(creases.map((c) => c.stop)).size !== creases.length) return null;
 
   return { seed, background, stops, creases };
 }

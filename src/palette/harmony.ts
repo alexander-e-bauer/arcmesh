@@ -85,8 +85,7 @@ export const CREASE_INSET: readonly [number, number] = [0.03, 0.12];
 // fades out over this length, both in unit canvas units.
 export const CREASE_BAND: readonly [number, number] = [0.03, 0.12];
 export const CREASE_FADE: readonly [number, number] = [0.25, 0.45];
-// How many directions to try before accepting a crease whose opaque band
-// covers another stop's position.
+// How many directions to try before settling for the least covering one.
 export const CREASE_TRIES = 6;
 
 const QUADRANTS: ReadonlyArray<readonly [number, number]> = [
@@ -196,25 +195,52 @@ function placeCrease(rng: Rng, stop: number, at: Point): Crease {
   return { stop, cx: x + d * dx, cy: y + d * dy, r, t0, t1 };
 }
 
-// True when the crease's opaque band (radii t1 r to r from its center)
-// contains another stop's position, which would hide that stop's blob.
+// Inside this radius a neighbor's blob still shows through the crease; from
+// it out to the edge the crease reads as opaque.
+function halfAlphaRadius(crease: Crease): number {
+  return ((crease.t0 + crease.t1) / 2) * crease.r;
+}
+
+// True when the crease sits at alpha 0.5 or more over another stop's
+// position, which would hide that stop's blob.
 export function coversOtherStop(crease: Crease, stops: readonly Point[]): boolean {
   return stops.some((point, i) => {
     if (i === crease.stop) return false;
     const dist = Math.hypot(point.x - crease.cx, point.y - crease.cy);
-    return dist >= crease.t1 * crease.r && dist <= crease.r;
+    return dist >= halfAlphaRadius(crease) && dist <= crease.r;
   });
+}
+
+// The crease's alpha at a point: 0 inside t0, rising to 1 at t1, 1 out to
+// the edge, 0 beyond. Used only to rank placements that all fail the gate.
+export function neighborAlpha(crease: Crease, point: Point): number {
+  const t = Math.hypot(point.x - crease.cx, point.y - crease.cy) / crease.r;
+  if (t > 1 || t <= crease.t0) return 0;
+  if (t >= crease.t1) return 1;
+  return (t - crease.t0) / (crease.t1 - crease.t0);
+}
+
+function worstNeighborAlpha(crease: Crease, stops: readonly Point[]): number {
+  return Math.max(0, ...stops.filter((_, i) => i !== crease.stop).map((point) => neighborAlpha(crease, point)));
 }
 
 export function pickCreases(rng: Rng, stops: readonly Point[]): Crease[] {
   const n = pickCreaseCount(rng);
   const chosen = rng.shuffle(Array.from({ length: stops.length }, (_, i) => i)).slice(0, n);
   return chosen.map((stop) => {
-    let crease = placeCrease(rng, stop, stops[stop]);
-    for (let attempt = 1; attempt < CREASE_TRIES && coversOtherStop(crease, stops); attempt++) {
-      crease = placeCrease(rng, stop, stops[stop]);
+    let best = placeCrease(rng, stop, stops[stop]);
+    let bestAlpha = worstNeighborAlpha(best, stops);
+    for (let attempt = 1; attempt < CREASE_TRIES && coversOtherStop(best, stops); attempt++) {
+      const next = placeCrease(rng, stop, stops[stop]);
+      const nextAlpha = worstNeighborAlpha(next, stops);
+      // Keep the least covering placement, so that when every direction
+      // covers a neighbor the one returned hides the least.
+      if (nextAlpha < bestAlpha) {
+        best = next;
+        bestAlpha = nextAlpha;
+      }
     }
-    return crease;
+    return best;
   });
 }
 

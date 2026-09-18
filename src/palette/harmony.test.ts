@@ -12,6 +12,7 @@ import {
   CREASE_MIN_DISTANCE,
   exitDistance,
   generatePalette,
+  neighborAlpha,
   paletteBandWeight,
   pickCreaseCount,
   pickCreases,
@@ -385,7 +386,7 @@ describe('creases', () => {
     expect(next.creases).toEqual(generatePalette(6, { count: first.stops.length }).creases);
   });
 
-  it('reports when the opaque band covers another stop', () => {
+  it('reports when the crease sits at half alpha or more over another stop', () => {
     const stops = [
       { x: 0.2, y: 0.5 },
       { x: 0.6, y: 0.5 },
@@ -398,12 +399,14 @@ describe('creases', () => {
     // Its own stop never counts.
     expect(coversOtherStop({ ...covering, stop: 1 }, stops)).toBe(true);
     expect(coversOtherStop({ ...covering, stop: 1 }, [stops[0], stops[1]])).toBe(true);
+    // Alone with its own stop, nothing counts.
+    expect(coversOtherStop(covering, [stops[0]])).toBe(false);
     // A narrow band past stop 1 misses everyone else.
     const narrow = { stop: 1, cx: -0.8, cy: 0.5, r: 1.45, t0: 0.9, t1: 0.98 };
     expect(coversOtherStop(narrow, stops)).toBe(false);
   });
 
-  it('avoids covering another stop with the opaque band when it can', () => {
+  it('avoids sitting at half alpha over another stop when it can', () => {
     const rng = createRng(33);
     let covered = 0;
     let total = 0;
@@ -416,5 +419,16 @@ describe('creases', () => {
     }
     expect(total).toBeGreaterThan(200);
     expect(covered / total).toBeLessThan(0.15);
+  });
+
+  it('scores the alpha a crease puts on a point', () => {
+    const crease = { stop: 0, cx: -1, cy: 0.5, r: 2, t0: 0.5, t1: 0.75 };
+    // Along y = 0.5, t is the distance from the center divided by 2.
+    expect(neighborAlpha(crease, { x: -0.5, y: 0.5 })).toBe(0);
+    expect(neighborAlpha(crease, { x: 0, y: 0.5 })).toBe(0);
+    expect(neighborAlpha(crease, { x: 0.25, y: 0.5 })).toBeCloseTo(0.5, 9);
+    expect(neighborAlpha(crease, { x: 0.5, y: 0.5 })).toBe(1);
+    expect(neighborAlpha(crease, { x: 1, y: 0.5 })).toBe(1);
+    expect(neighborAlpha(crease, { x: 1.2, y: 0.5 })).toBe(0);
   });
 });

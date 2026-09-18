@@ -75,6 +75,10 @@ export async function downloadPng(palette: Palette, width: number, height: numbe
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = pngFileName(palette.seed, width, height);
+  // Attached because some engines ignore clicks on detached anchors, and the
+  // URL is revoked later because some read the blob after the click returns.
+  document.body.appendChild(anchor);
   anchor.click();
-  URL.revokeObjectURL(url);
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

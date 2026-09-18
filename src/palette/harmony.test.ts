@@ -5,7 +5,11 @@ import {
   ARC_MIN,
   bandWeight,
   chromaCeiling,
+  CREASE_BEYOND,
+  CREASE_INSET,
   CREASE_MAX,
+  CREASE_MIN_DISTANCE,
+  exitDistance,
   generatePalette,
   paletteBandWeight,
   pickCreaseCount,
@@ -303,12 +307,13 @@ describe('creases', () => {
     expect(counts[2] / 1000).toBeLessThan(0.26);
   });
 
-  it('keeps every parameter in range on distinct stops', () => {
+  it('anchors each crease to its stop with the center off the canvas', () => {
     const rng = createRng(32);
     let seen = 0;
     for (let i = 0; i < 400; i++) {
       const count = i % 2 === 0 ? 4 : 5;
-      const creases = pickCreases(rng, count);
+      const positions = pickPositions(rng, count);
+      const creases = pickCreases(rng, positions);
       expect(creases.length).toBeLessThanOrEqual(CREASE_MAX);
       expect(new Set(creases.map((c) => c.stop)).size).toBe(creases.length);
       for (const c of creases) {
@@ -316,22 +321,35 @@ describe('creases', () => {
         expect(Number.isInteger(c.stop)).toBe(true);
         expect(c.stop).toBeGreaterThanOrEqual(0);
         expect(c.stop).toBeLessThan(count);
-        expect(c.cx).toBeGreaterThanOrEqual(-0.85);
-        expect(c.cx).toBeLessThanOrEqual(1.85);
-        expect(c.cy).toBeGreaterThanOrEqual(-0.85);
-        expect(c.cy).toBeLessThanOrEqual(1.85);
-        expect(c.r).toBeGreaterThanOrEqual(0.45);
-        expect(c.r).toBeLessThanOrEqual(1.2);
-        expect(c.t0).toBeGreaterThanOrEqual(0.35);
-        expect(c.t0).toBeLessThanOrEqual(0.6);
-        expect(c.t1 - c.t0).toBeGreaterThanOrEqual(0.15);
-        expect(c.t1 - c.t0).toBeLessThanOrEqual(0.3);
-        const d = Math.hypot(c.cx - 0.5, c.cy - 0.5);
-        expect(d).toBeGreaterThanOrEqual(0.95 - 1e-9);
-        expect(d).toBeLessThanOrEqual(1.35 + 1e-9);
+        const { x, y } = positions[c.stop];
+        const d = Math.hypot(c.cx - x, c.cy - y);
+        expect(d).toBeGreaterThanOrEqual(CREASE_MIN_DISTANCE + CREASE_BEYOND[0] - 1e-9);
+        expect(c.cx < 0 || c.cx > 1 || c.cy < 0 || c.cy > 1).toBe(true);
+        expect(c.r - d).toBeGreaterThanOrEqual(CREASE_INSET[0] - 1e-9);
+        expect(c.r - d).toBeLessThanOrEqual(CREASE_INSET[1] + 1e-9);
+        expect(c.cx).toBeGreaterThanOrEqual(-2);
+        expect(c.cx).toBeLessThanOrEqual(3);
+        expect(c.cy).toBeGreaterThanOrEqual(-2);
+        expect(c.cy).toBeLessThanOrEqual(3);
+        expect(c.r).toBeGreaterThanOrEqual(0.2);
+        expect(c.r).toBeLessThanOrEqual(2.5);
+        expect(c.t0).toBeGreaterThanOrEqual(0);
+        expect(c.t0).toBeLessThan(c.t1);
+        expect(c.t1).toBeLessThanOrEqual(0.99);
+        // The opaque band starts past the stop, on the center side.
+        expect(c.t1 * c.r).toBeLessThanOrEqual(d + 1e-9);
       }
     }
     expect(seen).toBeGreaterThan(200);
+  });
+
+  it('measures the distance to the canvas edge along a direction', () => {
+    expect(exitDistance(0.5, 0.5, 1, 0)).toBeCloseTo(0.5, 9);
+    expect(exitDistance(0.5, 0.5, -1, 0)).toBeCloseTo(0.5, 9);
+    expect(exitDistance(0.2, 0.5, 0, 1)).toBeCloseTo(0.5, 9);
+    expect(exitDistance(0.2, 0.5, 0, -1)).toBeCloseTo(0.5, 9);
+    expect(exitDistance(0.1, 0.1, Math.SQRT1_2, Math.SQRT1_2)).toBeCloseTo(0.9 * Math.SQRT2, 9);
+    expect(exitDistance(0.9, 0.2, Math.SQRT1_2, -Math.SQRT1_2)).toBeCloseTo(0.1 * Math.SQRT2, 9);
   });
 
   it('are generated with the palette and start attached to real stops', () => {

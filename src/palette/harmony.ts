@@ -74,10 +74,17 @@ export const BACKGROUND_LIGHT = 0.94;
 export const POSITION_JITTER = 0.15;
 
 export const CREASE_MAX = 2;
-export const CREASE_DISTANCE: readonly [number, number] = [0.95, 1.35];
-export const CREASE_INSET: readonly [number, number] = [0.15, 0.5];
-export const CREASE_FADE_START: readonly [number, number] = [0.35, 0.6];
-export const CREASE_FADE_LENGTH: readonly [number, number] = [0.15, 0.3];
+// A crease is anchored to its stop. Its center sits along a random direction
+// from the stop, at least this far past the canvas edge, so only one arc of
+// the ellipse crosses the canvas.
+export const CREASE_BEYOND: readonly [number, number] = [0.15, 0.5];
+export const CREASE_MIN_DISTANCE = 0.5;
+// How far the hard edge bulges past the stop, away from the center.
+export const CREASE_INSET: readonly [number, number] = [0.05, 0.2];
+// The opaque band runs from the edge back past the stop by this much, then
+// fades out over this length, both in unit canvas units.
+export const CREASE_BAND: readonly [number, number] = [0.05, 0.2];
+export const CREASE_FADE: readonly [number, number] = [0.25, 0.45];
 
 const QUADRANTS: ReadonlyArray<readonly [number, number]> = [
   [0.25, 0.25],
@@ -160,16 +167,33 @@ export function pickCreaseCount(rng: Rng): number {
   return 2;
 }
 
-export function pickCreases(rng: Rng, count: number): Crease[] {
+// Distance from a point inside the unit square to its edge along a direction.
+export function exitDistance(x: number, y: number, dx: number, dy: number): number {
+  const tx = dx > 0 ? (1 - x) / dx : dx < 0 ? -x / dx : Infinity;
+  const ty = dy > 0 ? (1 - y) / dy : dy < 0 ? -y / dy : Infinity;
+  return Math.max(0, Math.min(tx, ty));
+}
+
+export function pickCreases(rng: Rng, stops: readonly Point[]): Crease[] {
   const n = pickCreaseCount(rng);
-  const stops = rng.shuffle(Array.from({ length: count }, (_, i) => i)).slice(0, n);
-  return stops.map((stop) => {
+  const chosen = rng.shuffle(Array.from({ length: stops.length }, (_, i) => i)).slice(0, n);
+  return chosen.map((stop) => {
+    const { x, y } = stops[stop];
     const theta = rng.range(0, 2 * Math.PI);
-    const d = rng.range(CREASE_DISTANCE[0], CREASE_DISTANCE[1]);
+    const dx = Math.cos(theta);
+    const dy = Math.sin(theta);
+    const beyond = rng.range(CREASE_BEYOND[0], CREASE_BEYOND[1]);
     const s = rng.range(CREASE_INSET[0], CREASE_INSET[1]);
-    const t0 = rng.range(CREASE_FADE_START[0], CREASE_FADE_START[1]);
-    const t1 = t0 + rng.range(CREASE_FADE_LENGTH[0], CREASE_FADE_LENGTH[1]);
-    return { stop, cx: 0.5 + d * Math.cos(theta), cy: 0.5 + d * Math.sin(theta), r: d - s, t0, t1 };
+    const band = rng.range(CREASE_BAND[0], CREASE_BAND[1]);
+    const fade = rng.range(CREASE_FADE[0], CREASE_FADE[1]);
+    // The center sits past the canvas edge; the hard edge bulges past the
+    // stop on the far side; the opaque band reaches back past the stop and
+    // then fades toward the center, on-canvas.
+    const d = Math.max(CREASE_MIN_DISTANCE, exitDistance(x, y, dx, dy)) + beyond;
+    const r = d + s;
+    const t1 = Math.max(0.05, (d - band) / r);
+    const t0 = Math.max(0, t1 - fade / r);
+    return { stop, cx: x + d * dx, cy: y + d * dy, r, t0, t1 };
   });
 }
 
@@ -195,7 +219,7 @@ export function generatePalette(seed: number, options: GenerateOptions = {}): Pa
   }
   const chromaScale = rng.range(0.7, 1.0);
   const positions = pickPositions(rng, count);
-  const creases = pickCreases(rng, count);
+  const creases = pickCreases(rng, positions);
 
   const stops: Stop[] = hues.map((h, i) => {
     const l = lightness[i];

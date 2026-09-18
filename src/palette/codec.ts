@@ -108,8 +108,8 @@ function parseCrease(text: string, stopCount: number): Crease | null {
   if (numbers === null) return null;
   const [stop, cx, cy, r, t0, t1] = numbers;
   if (!Number.isInteger(stop) || stop < 0 || stop >= stopCount) return null;
-  if (!within(cx, -1, 2) || !within(cy, -1, 2)) return null;
-  if (!within(r, 0.2, 2)) return null;
+  if (!within(cx, -2, 3) || !within(cy, -2, 3)) return null;
+  if (!within(r, 0.2, 2.5)) return null;
   if (!(t0 >= 0 && t0 < t1 && t1 <= 0.99)) return null;
   return { stop, cx, cy, r, t0, t1 };
 }

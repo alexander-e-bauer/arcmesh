@@ -7,6 +7,11 @@ import { generatePalette, rerollPalette, type Palette } from './palette/harmony'
 import { randomSeed } from './palette/rng';
 import { paletteToCss } from './render/css';
 
+// Dragging a blob changes the palette on every pointer move, and browsers
+// rate-limit history writes (Safari throws past 100 in 30 seconds), so the
+// hash is written only once the palette has held still for a moment.
+const HASH_WRITE_DELAY = 150;
+
 function initialPalette(): Palette {
   return decodePalette(window.location.hash.slice(1)) ?? generatePalette(randomSeed());
 }
@@ -15,18 +20,29 @@ export default function App() {
   const [palette, setPalette] = useState<Palette>(initialPalette);
 
   useEffect(() => {
-    window.history.replaceState(null, '', `#${encodePalette(palette)}`);
+    const timer = window.setTimeout(() => {
+      try {
+        window.history.replaceState(null, '', `#${encodePalette(palette)}`);
+      } catch {
+        // Rate limited; the next palette change schedules another write.
+      }
+    }, HASH_WRITE_DELAY);
+    return () => window.clearTimeout(timer);
   }, [palette]);
 
   const reroll = useCallback(() => {
-    setPalette((current) => rerollPalette(current, randomSeed()));
+    const seed = randomSeed();
+    setPalette((current) => rerollPalette(current, seed));
   }, []);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.code !== 'Space' || event.repeat) return;
-      // A focused button already turns Space into a click.
-      if (event.target instanceof HTMLButtonElement) return;
+      // The action bar's buttons already turn Space into a click, so a reroll
+      // there would fire twice. Anywhere else, including a focused swatch,
+      // Space means reroll; preventing the default also stops the swatch
+      // from toggling on keyup.
+      if (event.target instanceof HTMLElement && event.target.closest('.actions')) return;
       event.preventDefault();
       reroll();
     }

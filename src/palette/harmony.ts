@@ -80,11 +80,14 @@ export const CREASE_MAX = 2;
 export const CREASE_BEYOND: readonly [number, number] = [0.15, 0.5];
 export const CREASE_MIN_DISTANCE = 0.5;
 // How far the hard edge bulges past the stop, away from the center.
-export const CREASE_INSET: readonly [number, number] = [0.05, 0.2];
+export const CREASE_INSET: readonly [number, number] = [0.03, 0.12];
 // The opaque band runs from the edge back past the stop by this much, then
 // fades out over this length, both in unit canvas units.
-export const CREASE_BAND: readonly [number, number] = [0.05, 0.2];
+export const CREASE_BAND: readonly [number, number] = [0.03, 0.12];
 export const CREASE_FADE: readonly [number, number] = [0.25, 0.45];
+// How many directions to try before accepting a crease whose opaque band
+// covers another stop's position.
+export const CREASE_TRIES = 6;
 
 const QUADRANTS: ReadonlyArray<readonly [number, number]> = [
   [0.25, 0.25],
@@ -174,26 +177,44 @@ export function exitDistance(x: number, y: number, dx: number, dy: number): numb
   return Math.max(0, Math.min(tx, ty));
 }
 
+function placeCrease(rng: Rng, stop: number, at: Point): Crease {
+  const { x, y } = at;
+  const theta = rng.range(0, 2 * Math.PI);
+  const dx = Math.cos(theta);
+  const dy = Math.sin(theta);
+  const beyond = rng.range(CREASE_BEYOND[0], CREASE_BEYOND[1]);
+  const s = rng.range(CREASE_INSET[0], CREASE_INSET[1]);
+  const band = rng.range(CREASE_BAND[0], CREASE_BAND[1]);
+  const fade = rng.range(CREASE_FADE[0], CREASE_FADE[1]);
+  // The center sits past the canvas edge; the hard edge bulges past the
+  // stop on the far side; the opaque band reaches back past the stop and
+  // then fades toward the center, on-canvas.
+  const d = Math.max(CREASE_MIN_DISTANCE, exitDistance(x, y, dx, dy)) + beyond;
+  const r = d + s;
+  const t1 = Math.max(0.05, (d - band) / r);
+  const t0 = Math.max(0, t1 - fade / r);
+  return { stop, cx: x + d * dx, cy: y + d * dy, r, t0, t1 };
+}
+
+// True when the crease's opaque band (radii t1 r to r from its center)
+// contains another stop's position, which would hide that stop's blob.
+export function coversOtherStop(crease: Crease, stops: readonly Point[]): boolean {
+  return stops.some((point, i) => {
+    if (i === crease.stop) return false;
+    const dist = Math.hypot(point.x - crease.cx, point.y - crease.cy);
+    return dist >= crease.t1 * crease.r && dist <= crease.r;
+  });
+}
+
 export function pickCreases(rng: Rng, stops: readonly Point[]): Crease[] {
   const n = pickCreaseCount(rng);
   const chosen = rng.shuffle(Array.from({ length: stops.length }, (_, i) => i)).slice(0, n);
   return chosen.map((stop) => {
-    const { x, y } = stops[stop];
-    const theta = rng.range(0, 2 * Math.PI);
-    const dx = Math.cos(theta);
-    const dy = Math.sin(theta);
-    const beyond = rng.range(CREASE_BEYOND[0], CREASE_BEYOND[1]);
-    const s = rng.range(CREASE_INSET[0], CREASE_INSET[1]);
-    const band = rng.range(CREASE_BAND[0], CREASE_BAND[1]);
-    const fade = rng.range(CREASE_FADE[0], CREASE_FADE[1]);
-    // The center sits past the canvas edge; the hard edge bulges past the
-    // stop on the far side; the opaque band reaches back past the stop and
-    // then fades toward the center, on-canvas.
-    const d = Math.max(CREASE_MIN_DISTANCE, exitDistance(x, y, dx, dy)) + beyond;
-    const r = d + s;
-    const t1 = Math.max(0.05, (d - band) / r);
-    const t0 = Math.max(0, t1 - fade / r);
-    return { stop, cx: x + d * dx, cy: y + d * dy, r, t0, t1 };
+    let crease = placeCrease(rng, stop, stops[stop]);
+    for (let attempt = 1; attempt < CREASE_TRIES && coversOtherStop(crease, stops); attempt++) {
+      crease = placeCrease(rng, stop, stops[stop]);
+    }
+    return crease;
   });
 }
 

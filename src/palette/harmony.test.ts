@@ -5,6 +5,7 @@ import {
   ARC_MIN,
   bandWeight,
   chromaCeiling,
+  coversOtherStop,
   CREASE_BEYOND,
   CREASE_INSET,
   CREASE_MAX,
@@ -382,5 +383,38 @@ describe('creases', () => {
     const first = generatePalette(5);
     const next = rerollPalette(first, 6);
     expect(next.creases).toEqual(generatePalette(6, { count: first.stops.length }).creases);
+  });
+
+  it('reports when the opaque band covers another stop', () => {
+    const stops = [
+      { x: 0.2, y: 0.5 },
+      { x: 0.6, y: 0.5 },
+      { x: 0.9, y: 0.9 },
+    ];
+    // Center at (-0.8, 0.5), radius 1.4: the band from radius 0.98 to 1.4
+    // covers x from 0.18 to 0.6 along y = 0.5, so stop 1 sits inside it.
+    const covering = { stop: 0, cx: -0.8, cy: 0.5, r: 1.4, t0: 0.5, t1: 0.7 };
+    expect(coversOtherStop(covering, stops)).toBe(true);
+    // Its own stop never counts.
+    expect(coversOtherStop({ ...covering, stop: 1 }, stops)).toBe(true);
+    expect(coversOtherStop({ ...covering, stop: 1 }, [stops[0], stops[1]])).toBe(true);
+    // A narrow band past stop 1 misses everyone else.
+    const narrow = { stop: 1, cx: -0.8, cy: 0.5, r: 1.45, t0: 0.9, t1: 0.98 };
+    expect(coversOtherStop(narrow, stops)).toBe(false);
+  });
+
+  it('avoids covering another stop with the opaque band when it can', () => {
+    const rng = createRng(33);
+    let covered = 0;
+    let total = 0;
+    for (let i = 0; i < 400; i++) {
+      const positions = pickPositions(rng, i % 2 === 0 ? 4 : 5);
+      for (const c of pickCreases(rng, positions)) {
+        total++;
+        if (coversOtherStop(c, positions)) covered++;
+      }
+    }
+    expect(total).toBeGreaterThan(200);
+    expect(covered / total).toBeLessThan(0.15);
   });
 });

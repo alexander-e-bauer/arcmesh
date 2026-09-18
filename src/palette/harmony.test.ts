@@ -1,0 +1,132 @@
+import { describe, expect, it } from 'vitest';
+import {
+  ARC_MAX,
+  ARC_MIN,
+  chromaCeiling,
+  pickHues,
+  pickLightness,
+  pickPositions,
+  pickStopCount,
+} from './harmony';
+import { createRng } from './rng';
+
+// Signed circular difference in degrees, in [-180, 180].
+function signedHueDelta(from: number, to: number): number {
+  let delta = (to - from) % 360;
+  if (delta > 180) delta -= 360;
+  if (delta < -180) delta += 360;
+  return delta;
+}
+
+describe('pickStopCount', () => {
+  it('returns four or five, mostly four', () => {
+    const rng = createRng(11);
+    const counts = { 4: 0, 5: 0 };
+    for (let i = 0; i < 1000; i++) counts[pickStopCount(rng)]++;
+    expect(counts[4]).toBeGreaterThan(counts[5]);
+    expect(counts[5]).toBeGreaterThan(100);
+  });
+});
+
+describe('pickHues', () => {
+  it('honors the stop count', () => {
+    expect(pickHues(createRng(1), 4).hues).toHaveLength(4);
+    expect(pickHues(createRng(1), 5).hues).toHaveLength(5);
+  });
+
+  it('keeps every non-accent stop on an arc of 30 to 90 degrees from the base hue', () => {
+    const rng = createRng(2);
+    for (let i = 0; i < 1000; i++) {
+      const { baseHue, arc, accentIndex, hues } = pickHues(rng, i % 2 === 0 ? 4 : 5);
+      expect(arc).toBeGreaterThanOrEqual(ARC_MIN);
+      expect(arc).toBeLessThanOrEqual(ARC_MAX);
+      hues.forEach((h, index) => {
+        if (index === accentIndex) return;
+        const offset = signedHueDelta(baseHue, h);
+        expect(offset).toBeGreaterThanOrEqual(-1e-9);
+        expect(offset).toBeLessThanOrEqual(arc + 1e-9);
+      });
+    }
+  });
+
+  it('places the accent opposite the base hue with up to 30 degrees of play', () => {
+    const rng = createRng(3);
+    let accents = 0;
+    for (let i = 0; i < 1000; i++) {
+      const { baseHue, accentIndex, hues } = pickHues(rng, 4);
+      if (accentIndex < 0) continue;
+      accents++;
+      const delta = Math.abs(signedHueDelta(baseHue + 180, hues[accentIndex]));
+      expect(delta).toBeLessThanOrEqual(30 + 1e-9);
+    }
+    expect(accents).toBeGreaterThan(250);
+    expect(accents).toBeLessThan(450);
+  });
+
+  it('returns hues already wrapped into [0, 360)', () => {
+    const rng = createRng(4);
+    for (let i = 0; i < 200; i++) {
+      for (const h of pickHues(rng, 5).hues) {
+        expect(h).toBeGreaterThanOrEqual(0);
+        expect(h).toBeLessThan(360);
+      }
+    }
+  });
+});
+
+describe('pickLightness', () => {
+  it('spreads lightness across the ramp rather than clustering', () => {
+    const rng = createRng(5);
+    for (let i = 0; i < 500; i++) {
+      const values = pickLightness(rng, i % 2 === 0 ? 4 : 5);
+      expect(Math.max(...values) - Math.min(...values)).toBeGreaterThanOrEqual(0.3);
+      for (const l of values) {
+        expect(l).toBeGreaterThanOrEqual(0.4);
+        expect(l).toBeLessThanOrEqual(0.9);
+      }
+    }
+  });
+
+  it('does not always hand the brightest value to the last stop', () => {
+    const rng = createRng(6);
+    let lastIsBrightest = 0;
+    for (let i = 0; i < 200; i++) {
+      const values = pickLightness(rng, 4);
+      if (values[3] === Math.max(...values)) lastIsBrightest++;
+    }
+    expect(lastIsBrightest).toBeLessThan(120);
+  });
+});
+
+describe('chromaCeiling', () => {
+  it('peaks at mid lightness and falls toward both ends', () => {
+    expect(chromaCeiling(0.5)).toBeGreaterThan(chromaCeiling(0.2));
+    expect(chromaCeiling(0.5)).toBeGreaterThan(chromaCeiling(0.9));
+    expect(chromaCeiling(0)).toBeCloseTo(0, 6);
+    expect(chromaCeiling(1)).toBeCloseTo(0, 6);
+  });
+});
+
+describe('pickPositions', () => {
+  it('puts one blob of a four-stop palette in each quadrant', () => {
+    const rng = createRng(7);
+    for (let i = 0; i < 200; i++) {
+      const points = pickPositions(rng, 4);
+      const quadrants = new Set(points.map((p) => `${p.x < 0.5 ? 'L' : 'R'}${p.y < 0.5 ? 'T' : 'B'}`));
+      expect(quadrants.size).toBe(4);
+      for (const p of points) {
+        expect(p.x).toBeGreaterThanOrEqual(0.1);
+        expect(p.x).toBeLessThanOrEqual(0.9);
+        expect(p.y).toBeGreaterThanOrEqual(0.1);
+        expect(p.y).toBeLessThanOrEqual(0.9);
+      }
+    }
+  });
+
+  it('adds a fifth blob near the center', () => {
+    const points = pickPositions(createRng(8), 5);
+    expect(points).toHaveLength(5);
+    const nearCenter = points.filter((p) => Math.abs(p.x - 0.5) <= 0.15 && Math.abs(p.y - 0.5) <= 0.15);
+    expect(nearCenter.length).toBeGreaterThanOrEqual(1);
+  });
+});

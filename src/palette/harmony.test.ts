@@ -3,10 +3,12 @@ import {
   ARC_MAX,
   ARC_MIN,
   chromaCeiling,
+  generatePalette,
   pickHues,
   pickLightness,
   pickPositions,
   pickStopCount,
+  rerollPalette,
 } from './harmony';
 import { createRng } from './rng';
 
@@ -128,5 +130,60 @@ describe('pickPositions', () => {
     expect(points).toHaveLength(5);
     const nearCenter = points.filter((p) => Math.abs(p.x - 0.5) <= 0.15 && Math.abs(p.y - 0.5) <= 0.15);
     expect(nearCenter.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('generatePalette', () => {
+  it('is deterministic for a seed', () => {
+    expect(generatePalette(123)).toEqual(generatePalette(123));
+  });
+
+  it('differs across seeds', () => {
+    expect(generatePalette(1)).not.toEqual(generatePalette(2));
+  });
+
+  it('records the seed and starts every stop unlocked', () => {
+    const palette = generatePalette(9);
+    expect(palette.seed).toBe(9);
+    expect(palette.stops.every((stop) => !stop.locked)).toBe(true);
+  });
+
+  it('uses four or five stops and honors an explicit count', () => {
+    expect([4, 5]).toContain(generatePalette(9).stops.length);
+    expect(generatePalette(9, { count: 5 }).stops).toHaveLength(5);
+    expect(generatePalette(9, { count: 4 }).stops).toHaveLength(4);
+  });
+
+  it('produces the same palette whether the count is drawn or passed', () => {
+    const drawn = generatePalette(21);
+    expect(generatePalette(21, { count: drawn.stops.length })).toEqual(drawn);
+  });
+
+  it('gives the background very low chroma at a dark or light lightness', () => {
+    for (const seed of [5, 6, 7, 8]) {
+      const { background } = generatePalette(seed);
+      expect(background.c).toBeLessThanOrEqual(0.02 + 1e-9);
+      expect([0.16, 0.94]).toContain(background.l);
+    }
+  });
+});
+
+describe('rerollPalette', () => {
+  it('keeps locked stops and replaces the rest', () => {
+    const first = generatePalette(1);
+    const locked = {
+      ...first,
+      stops: first.stops.map((stop, i) => (i === 1 ? { ...stop, locked: true } : stop)),
+    };
+    const next = rerollPalette(locked, 2);
+    expect(next.seed).toBe(2);
+    expect(next.stops).toHaveLength(first.stops.length);
+    expect(next.stops[1]).toEqual(locked.stops[1]);
+    expect(next.stops[0]).not.toEqual(first.stops[0]);
+  });
+
+  it('keeps the stop count of the previous palette', () => {
+    const five = generatePalette(3, { count: 5 });
+    expect(rerollPalette(five, 4).stops).toHaveLength(5);
   });
 });

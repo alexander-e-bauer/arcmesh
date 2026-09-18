@@ -1,5 +1,5 @@
-import { wrapHue, type Oklch } from './oklch';
-import type { Rng } from './rng';
+import { clampChroma, wrapHue, type Oklch } from './oklch';
+import { createRng, type Rng } from './rng';
 
 export interface Stop extends Oklch {
   x: number;
@@ -102,4 +102,46 @@ export function pickPositions(rng: Rng, count: number): Point[] {
       x: x + rng.range(-POSITION_JITTER, POSITION_JITTER),
       y: y + rng.range(-POSITION_JITTER, POSITION_JITTER),
     }));
+}
+
+export interface GenerateOptions {
+  count?: number;
+}
+
+export function generatePalette(seed: number, options: GenerateOptions = {}): Palette {
+  const rng = createRng(seed);
+
+  // Always draw the count so the sequence is the same whether or not the
+  // caller supplied one.
+  const drawnCount = pickStopCount(rng);
+  const count = options.count ?? drawnCount;
+
+  const { baseHue, accentIndex, hues } = pickHues(rng, count);
+  const lightness = pickLightness(rng, count);
+  const chromaScale = rng.range(0.7, 1.0);
+  const positions = pickPositions(rng, count);
+
+  const stops: Stop[] = hues.map((h, i) => {
+    const l = lightness[i];
+    let c = chromaCeiling(l) * chromaScale;
+    if (i === accentIndex) c *= ACCENT_CHROMA_SCALE;
+    const color = clampChroma({ l, c, h });
+    return { ...color, x: positions[i].x, y: positions[i].y, locked: false };
+  });
+
+  const background = clampChroma({
+    l: rng.chance(0.5) ? BACKGROUND_DARK : BACKGROUND_LIGHT,
+    c: BACKGROUND_CHROMA,
+    h: baseHue,
+  });
+
+  return { stops, background, seed };
+}
+
+export function rerollPalette(previous: Palette, seed: number): Palette {
+  const fresh = generatePalette(seed, { count: previous.stops.length });
+  return {
+    ...fresh,
+    stops: fresh.stops.map((stop, i) => (previous.stops[i].locked ? previous.stops[i] : stop)),
+  };
 }

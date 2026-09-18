@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generatePalette, type Palette } from '../palette/harmony';
-import { FALLOFF, formatOklch, paletteToCss } from './css';
+import { FALLOFF, formatHex, formatOklch, paletteToCss } from './css';
 
 const palette: Palette = {
   seed: 1,
@@ -14,9 +14,15 @@ const palette: Palette = {
   creases: [],
 };
 
-describe('formatOklch', () => {
-  it('emits an oklch() function with fixed precision', () => {
+describe('color formatting', () => {
+  it('emits an oklch() function with fixed precision, with an alpha 0 variant', () => {
     expect(formatOklch({ l: 0.5, c: 0.1, h: 200 })).toBe('oklch(0.500 0.100 200.0)');
+    expect(formatOklch({ l: 0.5, c: 0.1, h: 200 }, 0)).toBe('oklch(0.500 0.100 200.0 / 0)');
+  });
+
+  it('emits hex with an eight-digit alpha 0 variant', () => {
+    expect(formatHex({ l: 1, c: 0, h: 0 })).toBe('#ffffff');
+    expect(formatHex({ l: 1, c: 0, h: 0 }, 0)).toBe('#ffffff00');
   });
 });
 
@@ -29,7 +35,7 @@ describe('paletteToCss', () => {
 
   it('emits one hex layer and one oklch layer per stop', () => {
     expect(css.match(/radial-gradient\(/g)).toHaveLength(8);
-    expect(css.match(/oklch\(/g)).toHaveLength(4);
+    expect(css.match(/oklch\(/g)).toHaveLength(8);
   });
 
   it('puts the hex fallback block before the oklch block', () => {
@@ -46,17 +52,35 @@ describe('paletteToCss', () => {
     expect(css).toContain('at 75.0% 30.0%');
   });
 
-  it('fades every layer to transparent between 55 and 75 percent', () => {
+  it('fades every blob to its own color at alpha 0 between 55 and 75 percent', () => {
     for (const f of FALLOFF) {
       expect(f).toBeGreaterThanOrEqual(55);
       expect(f).toBeLessThanOrEqual(75);
     }
-    const fades = [...css.matchAll(/transparent (\d+)%/g)].map((m) => Number(m[1]));
-    expect(fades).toHaveLength(8);
-    for (const f of fades) {
-      expect(f).toBeGreaterThanOrEqual(55);
-      expect(f).toBeLessThanOrEqual(75);
+    expect(css).not.toContain('transparent');
+    const hexFades = [...css.matchAll(/(#[0-9a-f]{6})00 (\d+)%/g)];
+    const oklchFades = [...css.matchAll(/oklch\([^)]*\/ 0\) (\d+)%/g)];
+    expect(hexFades).toHaveLength(4);
+    expect(oklchFades).toHaveLength(4);
+    for (const m of hexFades) {
+      expect(css).toContain(`${m[1]} 0%`);
+      expect(Number(m[2])).toBeGreaterThanOrEqual(55);
+      expect(Number(m[2])).toBeLessThanOrEqual(75);
     }
+  });
+
+  it('emits a crease as an explicit ellipse with a hard edge, listed first', () => {
+    const withCrease = paletteToCss({
+      ...palette,
+      creases: [{ stop: 1, cx: 1.3, cy: 0.2, r: 0.9, t0: 0.4, t1: 0.6 }],
+    });
+    const hex = formatHex(palette.stops[1]);
+    const expected = `radial-gradient(90.0% 90.0% at 130.0% 20.0%, ${hex}00 0%, ${hex}00 40%, ${hex} 60%, ${hex} 99.2%, ${hex}00 100%)`;
+    expect(withCrease).toContain(expected);
+    const firstBlock = withCrease.slice(withCrease.indexOf('background-image:'), withCrease.indexOf('background-image:', withCrease.indexOf('background-image:') + 1));
+    expect(firstBlock.indexOf(expected)).toBeLessThan(firstBlock.indexOf('at 25.0% 25.0%'));
+    expect(withCrease.match(/radial-gradient\(/g)).toHaveLength(10);
+    expect(withCrease).toContain(`${formatOklch(palette.stops[1], 0)} 40%, ${formatOklch(palette.stops[1])} 60%`);
   });
 
   it('separates layers with commas and ends every declaration with a semicolon', () => {
@@ -68,8 +92,9 @@ describe('paletteToCss', () => {
     });
   });
 
-  it('handles a generated five-stop palette', () => {
-    const five = paletteToCss(generatePalette(3, { count: 5 }));
-    expect(five.match(/radial-gradient\(/g)).toHaveLength(10);
+  it('handles a generated five-stop palette, creases included', () => {
+    const generated = generatePalette(3, { count: 5 });
+    const five = paletteToCss(generated);
+    expect(five.match(/radial-gradient\(/g)).toHaveLength(2 * (5 + generated.creases.length));
   });
 });

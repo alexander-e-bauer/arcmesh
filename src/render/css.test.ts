@@ -58,10 +58,13 @@ describe('paletteToCss', () => {
     }
   });
 
-  it('ends every declaration with a semicolon', () => {
-    for (const line of css.split('\n').filter((l) => !l.startsWith(' '))) {
-      expect(line.endsWith(';') || line.endsWith(':')).toBe(true);
-    }
+  it('separates layers with commas and ends every declaration with a semicolon', () => {
+    const lines = css.split('\n');
+    lines.forEach((line, i) => {
+      if (line.endsWith(':')) return;
+      const nextIsLayer = lines[i + 1]?.startsWith(' ') ?? false;
+      expect(line.endsWith(nextIsLayer ? ',' : ';')).toBe(true);
+    });
   });
 
   it('handles a generated five-stop palette', () => {

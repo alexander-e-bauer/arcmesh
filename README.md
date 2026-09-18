@@ -4,7 +4,7 @@ A mesh gradient generator whose Randomize button picks a palette, not a seed.
 
 Live at [arcmesh.aebauer.dev](https://arcmesh.aebauer.dev). Press Space.
 
-[![arcmesh showing four blobs, violet, cream, plum, and pink, blending into one field over a dark background](docs/arcmesh.jpg)](https://arcmesh.aebauer.dev)
+[![arcmesh showing peach, ochre, and pale yellow blobs melting together above an orange region whose upper edge is a crisp arc, the crease, over a dark background](docs/arcmesh.jpg)](https://arcmesh.aebauer.dev)
 
 ## Why
 

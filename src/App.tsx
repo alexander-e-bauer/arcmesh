@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Canvas } from './components/Canvas';
 import { CopyButton } from './components/CopyButton';
+import { DownloadPanel } from './components/DownloadPanel';
 import { SwatchRail } from './components/SwatchRail';
 import { decodePalette, encodePalette } from './palette/codec';
 import { generatePalette, rerollPalette, type Palette } from './palette/harmony';
@@ -70,12 +71,13 @@ export default function App() {
     <main className="app">
       <header className="bar">
         <h1>arcmesh</h1>
-        <p className="hint">Space rerolls the unlocked stops. Click a swatch to lock it. Drag a blob to move it.</p>
+        <p className="hint">Space rerolls the unlocked stops. Click a swatch to lock it. Drag a blob to move it. Download PNG saves it at any size.</p>
         <div className="actions">
           <button type="button" onClick={reroll}>
             Randomize
           </button>
           <CopyButton text={css} />
+          <DownloadPanel palette={palette} />
         </div>
       </header>
       <Canvas palette={palette} onMove={moveStop} />

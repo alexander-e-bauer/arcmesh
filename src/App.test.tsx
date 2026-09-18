@@ -113,4 +113,10 @@ describe('App', () => {
     render(<App />);
     expect(screen.getByText(/background-color: #/)).toBeInTheDocument();
   });
+
+  it('offers a PNG download in the action bar', () => {
+    render(<App />);
+    const toggle = screen.getByRole('button', { name: 'Download PNG' });
+    expect(toggle.closest('.actions')).not.toBeNull();
+  });
 });

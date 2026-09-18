@@ -1,11 +1,12 @@
-import type { Palette, Stop } from './harmony';
+import { CREASE_MAX, type Crease, type Palette, type Stop } from './harmony';
 import type { Oklch } from './oklch';
 
 // The URL hash carries the whole palette, not just the seed: a locked stop
 // that survived a reroll came from an older seed, so the seed alone cannot
 // rebuild it. Text form, before base64url:
-//   1|<seed>|<bg l>,<bg c>,<bg h>|<h>,<c>,<l>,<x>,<y>,<locked>;...
-const VERSION = '1';
+//   2|<seed>|<bg l>,<bg c>,<bg h>|<h>,<c>,<l>,<x>,<y>,<locked>;...|<stop>,<cx>,<cy>,<r>,<t0>,<t1>;...
+// Version 1 had no crease field and still decodes.
+const VERSION = '2';
 const MIN_STOPS = 4;
 const MAX_STOPS = 5;
 
@@ -27,7 +28,10 @@ export function encodePalette(palette: Palette): string {
       ].join(','),
     )
     .join(';');
-  return toBase64Url([VERSION, String(palette.seed), background, stops].join('|'));
+  const creases = palette.creases
+    .map((c) => [String(c.stop), c.cx.toFixed(3), c.cy.toFixed(3), c.r.toFixed(3), c.t0.toFixed(3), c.t1.toFixed(3)].join(','))
+    .join(';');
+  return toBase64Url([VERSION, String(palette.seed), background, stops, creases].join('|'));
 }
 
 export function decodePalette(encoded: string): Palette | null {
@@ -35,7 +39,8 @@ export function decodePalette(encoded: string): Palette | null {
   if (text === null) return null;
 
   const parts = text.split('|');
-  if (parts.length !== 4 || parts[0] !== VERSION) return null;
+  const version = parts[0];
+  if (!((version === '1' && parts.length === 4) || (version === '2' && parts.length === 5))) return null;
 
   const seed = Number(parts[1]);
   if (parts[1] === '' || !Number.isInteger(seed) || seed < 0) return null;
@@ -52,7 +57,18 @@ export function decodePalette(encoded: string): Palette | null {
     stops.push(stop);
   }
 
-  return { seed, background, stops, creases: [] };
+  const creases: Crease[] = [];
+  if (version === '2' && parts[4] !== '') {
+    const creaseTexts = parts[4].split(';');
+    if (creaseTexts.length > CREASE_MAX) return null;
+    for (const creaseText of creaseTexts) {
+      const crease = parseCrease(creaseText, stops.length);
+      if (crease === null) return null;
+      creases.push(crease);
+    }
+  }
+
+  return { seed, background, stops, creases };
 }
 
 function parseNumbers(parts: string[], expected: number): number[] | null {
@@ -85,6 +101,17 @@ function parseStop(text: string): Stop | null {
   if (!within(x, 0, 1) || !within(y, 0, 1)) return null;
   if (locked !== 0 && locked !== 1) return null;
   return { h, c, l, x, y, locked: locked === 1 };
+}
+
+function parseCrease(text: string, stopCount: number): Crease | null {
+  const numbers = parseNumbers(text.split(','), 6);
+  if (numbers === null) return null;
+  const [stop, cx, cy, r, t0, t1] = numbers;
+  if (!Number.isInteger(stop) || stop < 0 || stop >= stopCount) return null;
+  if (!within(cx, -1, 2) || !within(cy, -1, 2)) return null;
+  if (!within(r, 0.2, 2)) return null;
+  if (!(t0 >= 0 && t0 < t1 && t1 <= 0.99)) return null;
+  return { stop, cx, cy, r, t0, t1 };
 }
 
 function toBase64Url(text: string): string {

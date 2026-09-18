@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ACCENT_CHROMA_MIN,
   ARC_MAX,
   ARC_MIN,
+  bandWeight,
   chromaCeiling,
   generatePalette,
+  paletteBandWeight,
   pickHues,
   pickLightness,
   pickPositions,
@@ -11,6 +14,7 @@ import {
   rerollPalette,
 } from './harmony';
 import { createRng } from './rng';
+import { clampChroma } from './oklch';
 
 // Signed circular difference in degrees, in [-180, 180].
 function signedHueDelta(from: number, to: number): number {
@@ -98,6 +102,24 @@ describe('pickLightness', () => {
     }
     expect(lastIsBrightest).toBeLessThan(120);
   });
+
+  it('lifts the ramp for a yellow palette and still spreads it', () => {
+    const rng = createRng(12);
+    for (let i = 0; i < 300; i++) {
+      const values = pickLightness(rng, i % 2 === 0 ? 4 : 5, 1);
+      for (const l of values) {
+        expect(l).toBeGreaterThanOrEqual(0.59);
+        expect(l).toBeLessThanOrEqual(0.97);
+      }
+      expect(Math.max(...values) - Math.min(...values)).toBeGreaterThanOrEqual(0.22);
+    }
+  });
+
+  it('leaves the ramp alone when the weight is zero', () => {
+    const a = pickLightness(createRng(4), 4);
+    const b = pickLightness(createRng(4), 4, 0);
+    expect(a).toEqual(b);
+  });
 });
 
 describe('chromaCeiling', () => {
@@ -106,6 +128,36 @@ describe('chromaCeiling', () => {
     expect(chromaCeiling(0.5)).toBeGreaterThan(chromaCeiling(0.9));
     expect(chromaCeiling(0)).toBeCloseTo(0, 6);
     expect(chromaCeiling(1)).toBeCloseTo(0, 6);
+  });
+
+  it('keeps chroma for bright stops by taking the square root of the sine', () => {
+    expect(chromaCeiling(0.45)).toBeCloseTo(0.199, 3);
+    expect(chromaCeiling(0.85)).toBeCloseTo(0.135, 3);
+    expect(chromaCeiling(0.5)).toBeCloseTo(0.2, 6);
+  });
+});
+
+describe('bandWeight', () => {
+  it('is a raised cosine centered on hue 100 and zero outside 50 to 150', () => {
+    expect(bandWeight(100)).toBeCloseTo(1, 9);
+    expect(bandWeight(75)).toBeCloseTo(0.5, 9);
+    expect(bandWeight(125)).toBeCloseTo(0.5, 9);
+    expect(bandWeight(50)).toBe(0);
+    expect(bandWeight(150)).toBe(0);
+    expect(bandWeight(0)).toBe(0);
+    expect(bandWeight(260)).toBe(0);
+  });
+
+  it('wraps hues before measuring', () => {
+    expect(bandWeight(460)).toBeCloseTo(1, 9);
+    expect(bandWeight(-260)).toBeCloseTo(1, 9);
+  });
+
+  it('takes the palette weight from the non-accent stops only', () => {
+    expect(paletteBandWeight([100, 110, 120, 130], -1)).toBeCloseTo(1, 9);
+    expect(paletteBandWeight([250, 260, 270, 100], 3)).toBe(0);
+    expect(paletteBandWeight([250, 260, 270, 100], -1)).toBeCloseTo(1, 9);
+    expect(paletteBandWeight([30, 45, 60, 75], -1)).toBeCloseTo(0.5, 9);
   });
 });
 
@@ -165,6 +217,53 @@ describe('generatePalette', () => {
       expect(background.c).toBeLessThanOrEqual(0.02 + 1e-9);
       expect([0.16, 0.94]).toContain(background.l);
     }
+  });
+
+  // Rebuilds the hue draw so a test can see which stop is the accent and
+  // what band weight the generator used, without exposing internals.
+  function huesFor(seed: number) {
+    const rng = createRng(seed);
+    const count = pickStopCount(rng);
+    return pickHues(rng, count);
+  }
+
+  it('forces a dark background when the palette sits in the yellow band', () => {
+    let checked = 0;
+    for (let seed = 1; seed <= 400; seed++) {
+      const { hues, accentIndex } = huesFor(seed);
+      if (paletteBandWeight(hues, accentIndex) < 0.5) continue;
+      expect(generatePalette(seed).background.l).toBe(0.16);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(10);
+  });
+
+  it('never gives the accent less than the chroma floor, short of the gamut', () => {
+    let checked = 0;
+    for (let seed = 1; seed <= 400; seed++) {
+      const { accentIndex } = huesFor(seed);
+      if (accentIndex < 0) continue;
+      const accent = generatePalette(seed).stops[accentIndex];
+      const reachable = clampChroma({ l: accent.l, c: ACCENT_CHROMA_MIN, h: accent.h }).c;
+      // The clamp bisects 20 times, so two searches that start from different
+      // chromas land within about 4e-7 of the same boundary.
+      expect(accent.c).toBeGreaterThanOrEqual(Math.min(ACCENT_CHROMA_MIN, reachable) - 1e-6);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(50);
+  });
+
+  it('gives an in-band accent the brightest slot', () => {
+    let checked = 0;
+    for (let seed = 1; seed <= 600; seed++) {
+      const { hues, accentIndex } = huesFor(seed);
+      if (accentIndex < 0 || bandWeight(hues[accentIndex]) < 0.5) continue;
+      const palette = generatePalette(seed);
+      const brightest = Math.max(...palette.stops.map((stop) => stop.l));
+      expect(palette.stops[accentIndex].l).toBe(brightest);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(5);
   });
 });
 

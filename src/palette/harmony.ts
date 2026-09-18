@@ -33,11 +33,23 @@ export const ARC_MAX = 90;
 export const ACCENT_PROBABILITY = 0.35;
 export const ACCENT_CHROMA_SCALE = 0.6;
 
+// An accent in the brightest slot was landing near 0.04 chroma, which reads
+// grey; the floor keeps it a color. The gamut clamp may still lower it.
+export const ACCENT_CHROMA_MIN = 0.05;
+
 // Lightness is a ramp, never sampled per stop: every mesh gets a bright
 // region and a deep one.
 export const LIGHTNESS_MIN = 0.45;
 export const LIGHTNESS_MAX = 0.85;
 export const LIGHTNESS_JITTER = 0.04;
+
+// Yellow has almost no chroma at mid lightness, so a palette based in the
+// band around hue 100 lifts its ramp. The weight is a raised cosine, 1 at
+// the band center, 0 at its edges.
+export const BAND_CENTER = 100;
+export const BAND_HALF_WIDTH = 50;
+export const BAND_LIFT_MIN = 0.18;
+export const BAND_LIFT_MAX = 0.08;
 
 export const CHROMA_PEAK = 0.2;
 
@@ -79,18 +91,35 @@ export function pickHues(rng: Rng, count: number): Hues {
   return { baseHue, arc, accentIndex, hues };
 }
 
-export function pickLightness(rng: Rng, count: number): number[] {
-  const step = (LIGHTNESS_MAX - LIGHTNESS_MIN) / (count - 1);
+export function bandWeight(h: number): number {
+  const delta = Math.abs(wrapHue(h) - BAND_CENTER);
+  const dist = Math.min(delta, 360 - delta);
+  if (dist >= BAND_HALF_WIDTH) return 0;
+  return 0.5 * (1 + Math.cos((Math.PI * dist) / BAND_HALF_WIDTH));
+}
+
+// The accent is left out: a blue palette with a yellow accent must not be
+// lifted into pastel.
+export function paletteBandWeight(hues: number[], accentIndex: number): number {
+  return Math.max(0, ...hues.filter((_, i) => i !== accentIndex).map(bandWeight));
+}
+
+export function pickLightness(rng: Rng, count: number, w = 0): number[] {
+  const min = LIGHTNESS_MIN + BAND_LIFT_MIN * w;
+  const max = LIGHTNESS_MAX + BAND_LIFT_MAX * w;
+  const step = (max - min) / (count - 1);
   const ramp: number[] = [];
   for (let i = 0; i < count; i++) {
-    ramp.push(LIGHTNESS_MIN + i * step + rng.range(-LIGHTNESS_JITTER, LIGHTNESS_JITTER));
+    ramp.push(min + i * step + rng.range(-LIGHTNESS_JITTER, LIGHTNESS_JITTER));
   }
   return rng.shuffle(ramp);
 }
 
-// Highest at mid lightness, falling to zero at both ends.
+// Highest at mid lightness, zero at both ends. The square root keeps bright
+// stops colorful: the plain sine fell below the gamut for most hues at 0.85.
 export function chromaCeiling(l: number): number {
-  return CHROMA_PEAK * Math.sin(Math.PI * Math.min(1, Math.max(0, l)));
+  const clamped = Math.min(1, Math.max(0, l));
+  return CHROMA_PEAK * Math.sqrt(Math.max(0, Math.sin(Math.PI * clamped)));
 }
 
 export function pickPositions(rng: Rng, count: number): Point[] {
@@ -117,20 +146,28 @@ export function generatePalette(seed: number, options: GenerateOptions = {}): Pa
   const count = options.count ?? drawnCount;
 
   const { baseHue, accentIndex, hues } = pickHues(rng, count);
-  const lightness = pickLightness(rng, count);
+  const w = paletteBandWeight(hues, accentIndex);
+  const lightness = pickLightness(rng, count, w);
+  if (accentIndex >= 0 && bandWeight(hues[accentIndex]) >= 0.5) {
+    // A dim yellow accent is olive; give it the brightest slot.
+    const brightest = lightness.indexOf(Math.max(...lightness));
+    [lightness[accentIndex], lightness[brightest]] = [lightness[brightest], lightness[accentIndex]];
+  }
   const chromaScale = rng.range(0.7, 1.0);
   const positions = pickPositions(rng, count);
 
   const stops: Stop[] = hues.map((h, i) => {
     const l = lightness[i];
     let c = chromaCeiling(l) * chromaScale;
-    if (i === accentIndex) c *= ACCENT_CHROMA_SCALE;
+    if (i === accentIndex) c = Math.max(ACCENT_CHROMA_MIN, c * ACCENT_CHROMA_SCALE);
     const color = clampChroma({ l, c, h });
     return { ...color, x: positions[i].x, y: positions[i].y, locked: false };
   });
 
+  // The flip is always drawn so the sequence does not depend on the weight.
+  const dark = rng.chance(0.5);
   const background = clampChroma({
-    l: rng.chance(0.5) ? BACKGROUND_DARK : BACKGROUND_LIGHT,
+    l: dark || w >= 0.5 ? BACKGROUND_DARK : BACKGROUND_LIGHT,
     c: BACKGROUND_CHROMA,
     h: baseHue,
   });

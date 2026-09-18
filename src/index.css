@@ -105,6 +105,15 @@ button:hover {
   border-color: #fff;
 }
 
+.swatch-light {
+  color: #111214;
+  text-shadow: none;
+}
+
+.swatch-light[aria-pressed="true"] {
+  border-color: #111214;
+}
+
 .css {
   margin: 0;
   padding: 12px;

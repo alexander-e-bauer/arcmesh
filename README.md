@@ -2,6 +2,8 @@
 
 A mesh gradient generator whose Randomize button picks a palette, not a seed.
 
+![arcmesh showing four blobs, violet, cream, plum, and pink, blending into one field over a dark background](docs/arcmesh.jpg)
+
 ## Why
 
 Mesh gradient tools usually make you pick the colors, which is the hard part. Their randomize buttons reshuffle positions and leave the colors alone, or sample hues independently and produce grey smears where far-apart hues blend.
@@ -22,6 +24,8 @@ npm run dev
 npm test
 npm run build
 ```
+
+Requires Node 22 or newer. On npm 11, `npm install` warns that it skipped esbuild's postinstall script; the build works without it.
 
 No backend, no environment variables, no accounts. It deploys as a static site.
 

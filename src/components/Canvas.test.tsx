@@ -61,4 +61,47 @@ describe('Canvas', () => {
     fireEvent.pointerMove(handle, { pointerId: 1, clientX: -40, clientY: 500 });
     expect(onMove).toHaveBeenCalledWith(0, 0, 1);
   });
+
+  it('ignores a drag started with a secondary mouse button', () => {
+    const onMove = vi.fn();
+    render(<Canvas palette={generatePalette(4)} onMove={onMove} />);
+    const canvas = screen.getByTestId('canvas');
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 200,
+      height: 100,
+      right: 200,
+      bottom: 100,
+      toJSON: () => ({}),
+    });
+    const handle = screen.getAllByTestId('handle')[0];
+    fireEvent.pointerDown(handle, { pointerId: 1, pointerType: 'mouse', button: 2 });
+    fireEvent.pointerMove(handle, { pointerId: 1, clientX: 50, clientY: 50 });
+    expect(onMove).not.toHaveBeenCalled();
+  });
+
+  it('ends the drag when pointer capture is lost', () => {
+    const onMove = vi.fn();
+    render(<Canvas palette={generatePalette(4)} onMove={onMove} />);
+    const canvas = screen.getByTestId('canvas');
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 200,
+      height: 100,
+      right: 200,
+      bottom: 100,
+      toJSON: () => ({}),
+    });
+    const handle = screen.getAllByTestId('handle')[0];
+    fireEvent.pointerDown(handle, { pointerId: 1 });
+    fireEvent.lostPointerCapture(handle, { pointerId: 1 });
+    fireEvent.pointerMove(handle, { pointerId: 1, clientX: 50, clientY: 50 });
+    expect(onMove).not.toHaveBeenCalled();
+  });
 });

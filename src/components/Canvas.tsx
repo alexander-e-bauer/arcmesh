@@ -35,6 +35,7 @@ export function Canvas({ palette, onMove }: CanvasProps) {
           data-testid="handle"
           style={{ left: `${stop.x * 100}%`, top: `${stop.y * 100}%`, background: oklchToHex(stop) }}
           onPointerDown={(event) => {
+            if (event.pointerType === 'mouse' && event.button !== 0) return;
             dragging.current = index;
             event.currentTarget.setPointerCapture(event.pointerId);
           }}
@@ -47,6 +48,9 @@ export function Canvas({ palette, onMove }: CanvasProps) {
             dragging.current = null;
           }}
           onPointerCancel={() => {
+            dragging.current = null;
+          }}
+          onLostPointerCapture={() => {
             dragging.current = null;
           }}
         />

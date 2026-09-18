@@ -7,8 +7,22 @@ export interface Stop extends Oklch {
   locked: boolean;
 }
 
+// A crease is the fold a real mesh gradient produces: a hard curved edge on
+// one side of a color region. It is an ellipse of the stop's color whose
+// center sits off-canvas, so one arc of its edge crosses the canvas. All in
+// unit canvas coordinates (x in widths, y in heights).
+export interface Crease {
+  stop: number;
+  cx: number;
+  cy: number;
+  r: number;
+  t0: number;
+  t1: number;
+}
+
 export interface Palette {
   stops: Stop[];
+  creases: Crease[];
   background: Oklch;
   seed: number;
 }
@@ -58,6 +72,12 @@ export const BACKGROUND_DARK = 0.16;
 export const BACKGROUND_LIGHT = 0.94;
 
 export const POSITION_JITTER = 0.15;
+
+export const CREASE_MAX = 2;
+export const CREASE_DISTANCE: readonly [number, number] = [0.95, 1.35];
+export const CREASE_INSET: readonly [number, number] = [0.15, 0.5];
+export const CREASE_FADE_START: readonly [number, number] = [0.35, 0.6];
+export const CREASE_FADE_LENGTH: readonly [number, number] = [0.15, 0.3];
 
 const QUADRANTS: ReadonlyArray<readonly [number, number]> = [
   [0.25, 0.25],
@@ -133,6 +153,26 @@ export function pickPositions(rng: Rng, count: number): Point[] {
     }));
 }
 
+export function pickCreaseCount(rng: Rng): number {
+  const u = rng.next();
+  if (u < 0.35) return 0;
+  if (u < 0.8) return 1;
+  return 2;
+}
+
+export function pickCreases(rng: Rng, count: number): Crease[] {
+  const n = pickCreaseCount(rng);
+  const stops = rng.shuffle(Array.from({ length: count }, (_, i) => i)).slice(0, n);
+  return stops.map((stop) => {
+    const theta = rng.range(0, 2 * Math.PI);
+    const d = rng.range(CREASE_DISTANCE[0], CREASE_DISTANCE[1]);
+    const s = rng.range(CREASE_INSET[0], CREASE_INSET[1]);
+    const t0 = rng.range(CREASE_FADE_START[0], CREASE_FADE_START[1]);
+    const t1 = t0 + rng.range(CREASE_FADE_LENGTH[0], CREASE_FADE_LENGTH[1]);
+    return { stop, cx: 0.5 + d * Math.cos(theta), cy: 0.5 + d * Math.sin(theta), r: d - s, t0, t1 };
+  });
+}
+
 export interface GenerateOptions {
   count?: number;
 }
@@ -155,6 +195,7 @@ export function generatePalette(seed: number, options: GenerateOptions = {}): Pa
   }
   const chromaScale = rng.range(0.7, 1.0);
   const positions = pickPositions(rng, count);
+  const creases = pickCreases(rng, count);
 
   const stops: Stop[] = hues.map((h, i) => {
     const l = lightness[i];
@@ -172,13 +213,19 @@ export function generatePalette(seed: number, options: GenerateOptions = {}): Pa
     h: baseHue,
   });
 
-  return { stops, background, seed };
+  return { stops, creases, background, seed };
 }
 
 export function rerollPalette(previous: Palette, seed: number): Palette {
   const fresh = generatePalette(seed, { count: previous.stops.length });
+  const locked = new Set(previous.stops.flatMap((stop, i) => (stop.locked ? [i] : [])));
+  // A locked stop keeps its creases; fresh creases never land on it, and the
+  // total stays capped by dropping fresh ones first.
+  const kept = previous.creases.filter((c) => locked.has(c.stop));
+  const added = fresh.creases.filter((c) => !locked.has(c.stop)).slice(0, Math.max(0, CREASE_MAX - kept.length));
   return {
     ...fresh,
     stops: fresh.stops.map((stop, i) => (previous.stops[i].locked ? previous.stops[i] : stop)),
+    creases: [...kept, ...added],
   };
 }

@@ -11,6 +11,7 @@ const palette: Palette = {
     { l: 0.85, c: 0.08, h: 240, x: 0.2, y: 0.8, locked: false },
     { l: 0.6, c: 0.1, h: 260, x: 0.7, y: 0.75, locked: false },
   ],
+  creases: [],
 };
 
 describe('formatOklch', () => {

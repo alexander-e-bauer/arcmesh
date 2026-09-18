@@ -5,8 +5,11 @@ import {
   ARC_MIN,
   bandWeight,
   chromaCeiling,
+  CREASE_MAX,
   generatePalette,
   paletteBandWeight,
+  pickCreaseCount,
+  pickCreases,
   pickHues,
   pickLightness,
   pickPositions,
@@ -284,5 +287,82 @@ describe('rerollPalette', () => {
   it('keeps the stop count of the previous palette', () => {
     const five = generatePalette(3, { count: 5 });
     expect(rerollPalette(five, 4).stops).toHaveLength(5);
+  });
+});
+
+describe('creases', () => {
+  it('draws zero, one, or two with the stated odds', () => {
+    const rng = createRng(31);
+    const counts = [0, 0, 0];
+    for (let i = 0; i < 1000; i++) counts[pickCreaseCount(rng)]++;
+    expect(counts[0] / 1000).toBeGreaterThan(0.29);
+    expect(counts[0] / 1000).toBeLessThan(0.41);
+    expect(counts[1] / 1000).toBeGreaterThan(0.39);
+    expect(counts[1] / 1000).toBeLessThan(0.51);
+    expect(counts[2] / 1000).toBeGreaterThan(0.14);
+    expect(counts[2] / 1000).toBeLessThan(0.26);
+  });
+
+  it('keeps every parameter in range on distinct stops', () => {
+    const rng = createRng(32);
+    let seen = 0;
+    for (let i = 0; i < 400; i++) {
+      const count = i % 2 === 0 ? 4 : 5;
+      const creases = pickCreases(rng, count);
+      expect(creases.length).toBeLessThanOrEqual(CREASE_MAX);
+      expect(new Set(creases.map((c) => c.stop)).size).toBe(creases.length);
+      for (const c of creases) {
+        seen++;
+        expect(Number.isInteger(c.stop)).toBe(true);
+        expect(c.stop).toBeGreaterThanOrEqual(0);
+        expect(c.stop).toBeLessThan(count);
+        expect(c.cx).toBeGreaterThanOrEqual(-0.85);
+        expect(c.cx).toBeLessThanOrEqual(1.85);
+        expect(c.cy).toBeGreaterThanOrEqual(-0.85);
+        expect(c.cy).toBeLessThanOrEqual(1.85);
+        expect(c.r).toBeGreaterThanOrEqual(0.45);
+        expect(c.r).toBeLessThanOrEqual(1.2);
+        expect(c.t0).toBeGreaterThanOrEqual(0.35);
+        expect(c.t0).toBeLessThanOrEqual(0.6);
+        expect(c.t1 - c.t0).toBeGreaterThanOrEqual(0.15);
+        expect(c.t1 - c.t0).toBeLessThanOrEqual(0.3);
+        const d = Math.hypot(c.cx - 0.5, c.cy - 0.5);
+        expect(d).toBeGreaterThanOrEqual(0.95 - 1e-9);
+        expect(d).toBeLessThanOrEqual(1.35 + 1e-9);
+      }
+    }
+    expect(seen).toBeGreaterThan(200);
+  });
+
+  it('are generated with the palette and start attached to real stops', () => {
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      const palette = generatePalette(seed);
+      for (const c of palette.creases) expect(c.stop).toBeLessThan(palette.stops.length);
+    }
+    expect(generatePalette(3)).toEqual(generatePalette(3));
+  });
+
+  it('survive a reroll on a locked stop and never land fresh on a locked stop', () => {
+    let seed = 1;
+    while (!generatePalette(seed).creases.some((c) => c.stop === 0)) seed++;
+    const first = generatePalette(seed);
+    const locked = {
+      ...first,
+      stops: first.stops.map((stop, i) => (i === 0 ? { ...stop, locked: true } : stop)),
+    };
+    const kept = first.creases.filter((c) => c.stop === 0);
+    for (let next = 100; next < 160; next++) {
+      const rerolled = rerollPalette(locked, next);
+      expect(rerolled.creases.length).toBeLessThanOrEqual(CREASE_MAX);
+      expect(rerolled.creases.filter((c) => c.stop === 0)).toEqual(kept);
+      const fresh = generatePalette(next, { count: first.stops.length }).creases.filter((c) => c.stop !== 0);
+      for (const c of rerolled.creases.filter((c) => c.stop !== 0)) expect(fresh).toContainEqual(c);
+    }
+  });
+
+  it('drop creases of unlocked stops on reroll', () => {
+    const first = generatePalette(5);
+    const next = rerollPalette(first, 6);
+    expect(next.creases).toEqual(generatePalette(6, { count: first.stops.length }).creases);
   });
 });

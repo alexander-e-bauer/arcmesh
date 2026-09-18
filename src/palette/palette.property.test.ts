@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { ARC_MAX, bandWeight, LIGHTNESS_JITTER, LIGHTNESS_MIN, BAND_LIFT_MIN, generatePalette } from './harmony';
+import {
+  ARC_MAX,
+  bandWeight,
+  LIGHTNESS_JITTER,
+  LIGHTNESS_MIN,
+  BAND_LIFT_MIN,
+  CREASE_MAX,
+  generatePalette,
+} from './harmony';
 import { inGamut, oklchToSrgb } from './oklch';
 
 // Smallest arc that contains every hue: 360 minus the largest gap between
@@ -66,6 +74,18 @@ describe('a thousand generated palettes', () => {
       for (const stop of others) expect(stop.l).toBeGreaterThanOrEqual(floor);
       if (accent >= 0 && bandWeight(palette.stops[accent].h) >= 0.5) {
         expect(palette.stops[accent].l).toBe(Math.max(...palette.stops.map((stop) => stop.l)));
+      }
+    }
+  });
+
+  it('carry at most two creases, each on a real stop', () => {
+    for (const palette of palettes) {
+      expect(palette.creases.length).toBeLessThanOrEqual(CREASE_MAX);
+      for (const c of palette.creases) {
+        expect(c.stop).toBeGreaterThanOrEqual(0);
+        expect(c.stop).toBeLessThan(palette.stops.length);
+        expect(c.t0).toBeLessThan(c.t1);
+        expect(c.t1).toBeLessThanOrEqual(0.99);
       }
     }
   });

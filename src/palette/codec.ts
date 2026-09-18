@@ -52,7 +52,7 @@ export function decodePalette(encoded: string): Palette | null {
     stops.push(stop);
   }
 
-  return { seed, background, stops };
+  return { seed, background, stops, creases: [] };
 }
 
 function parseNumbers(parts: string[], expected: number): number[] | null {

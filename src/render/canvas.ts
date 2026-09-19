@@ -1,12 +1,21 @@
 import type { Palette } from '../palette/harmony';
 import { oklchToHex, oklchToSrgb, type Oklch } from '../palette/oklch';
+import { GRAIN_BLEND, grainTile } from './grain';
 import { paletteToLayers, type Layer } from './layers';
 
 // The slice of a 2D context the renderer touches, so tests can hand in a
 // recording fake and the browser hands in the real thing.
 export type Context2D = Pick<
   CanvasRenderingContext2D,
-  'fillStyle' | 'fillRect' | 'save' | 'restore' | 'translate' | 'scale' | 'createRadialGradient'
+  | 'fillStyle'
+  | 'globalCompositeOperation'
+  | 'fillRect'
+  | 'save'
+  | 'restore'
+  | 'translate'
+  | 'scale'
+  | 'createRadialGradient'
+  | 'createPattern'
 >;
 
 export function rgbaString(color: Oklch, alpha: number): string {
@@ -33,13 +42,26 @@ function drawLayer(ctx: Context2D, layer: Layer, width: number, height: number):
   ctx.restore();
 }
 
+// The grain tile repeats over the whole canvas under the same blend the CSS
+// names, so the PNG carries the same texture as the preview.
+function drawGrain(ctx: Context2D, tile: CanvasImageSource, width: number, height: number): void {
+  const pattern = ctx.createPattern(tile, 'repeat');
+  if (!pattern) throw new Error('canvas pattern unavailable');
+  ctx.save();
+  ctx.globalCompositeOperation = GRAIN_BLEND;
+  ctx.fillStyle = pattern;
+  ctx.fillRect(0, 0, width, height);
+  ctx.restore();
+}
+
 // Paints exactly what paletteToCss describes: the background, then the
-// layer list from the bottom up.
-export function drawPalette(ctx: Context2D, palette: Palette, width: number, height: number): void {
+// layer list from the bottom up, then the grain.
+export function drawPalette(ctx: Context2D, palette: Palette, width: number, height: number, grain: CanvasImageSource): void {
   ctx.fillStyle = oklchToHex(palette.background);
   ctx.fillRect(0, 0, width, height);
   const layers = paletteToLayers(palette);
   for (let i = layers.length - 1; i >= 0; i--) drawLayer(ctx, layers[i], width, height);
+  drawGrain(ctx, grain, width, height);
 }
 
 export function pngFileName(seed: number, width: number, height: number): string {
@@ -52,7 +74,7 @@ export async function renderPng(palette: Palette, width: number, height: number)
   canvas.height = height;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('canvas 2d context unavailable');
-  drawPalette(ctx, palette, width, height);
+  drawPalette(ctx, palette, width, height, grainTile());
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('png encoding failed'))), 'image/png');
   });

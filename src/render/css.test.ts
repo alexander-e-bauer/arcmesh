@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { generatePalette, type Palette } from '../palette/harmony';
 import { FALLOFF, formatHex, formatOklch, paletteToCss } from './css';
+import { GRAIN_BLEND, grainCssLayer } from './grain';
 
 const palette: Palette = {
   seed: 1,
@@ -36,6 +37,25 @@ describe('paletteToCss', () => {
   it('emits one hex layer and one oklch layer per stop', () => {
     expect(css.match(/radial-gradient\(/g)).toHaveLength(8);
     expect(css.match(/oklch\(/g)).toHaveLength(8);
+  });
+
+  it('puts the grain tile on top of both blocks and blends only that layer', () => {
+    const grain = grainCssLayer();
+    const blocks = css.split('background-image:\n').slice(1);
+    expect(blocks).toHaveLength(2);
+    for (const block of blocks) {
+      expect(block.startsWith(`  ${grain},\n  radial-gradient(`)).toBe(true);
+    }
+    const lines = css.split('\n');
+    expect(lines[lines.length - 1]).toBe(`background-blend-mode: ${GRAIN_BLEND}, normal, normal, normal, normal;`);
+  });
+
+  it('lists one blend mode per layer, creases included', () => {
+    const withCrease = paletteToCss({
+      ...palette,
+      creases: [{ stop: 1, cx: 1.3, cy: 0.2, r: 0.9, t0: 0.4, t1: 0.6 }],
+    });
+    expect(withCrease.endsWith(`background-blend-mode: ${GRAIN_BLEND}, normal, normal, normal, normal, normal;`)).toBe(true);
   });
 
   it('puts the hex fallback block before the oklch block', () => {

@@ -1,5 +1,6 @@
 import type { Palette } from '../palette/harmony';
 import { oklchToHex, type Oklch } from '../palette/oklch';
+import { GRAIN_BLEND, grainCssLayer } from './grain';
 import { paletteToLayers, type Layer } from './layers';
 
 export { FALLOFF } from './layers';
@@ -32,14 +33,19 @@ function layerCss(layer: Layer, paint: Paint): string {
 
 // One background-color, then two background-image declarations: hex first,
 // oklch second. An engine that cannot parse oklch() drops the second
-// declaration and keeps the first, so the hex block is the fallback.
+// declaration and keeps the first, so the hex block is the fallback. The
+// grain tile heads both blocks, and the blend-mode list names it alone,
+// one entry per layer, because a shorter list would repeat.
 export function paletteToCss(palette: Palette): string {
   const layers = paletteToLayers(palette);
-  const hexLayers = layers.map((layer) => layerCss(layer, formatHex));
-  const oklchLayers = layers.map((layer) => layerCss(layer, formatOklch));
+  const grain = grainCssLayer();
+  const hexLayers = [grain, ...layers.map((layer) => layerCss(layer, formatHex))];
+  const oklchLayers = [grain, ...layers.map((layer) => layerCss(layer, formatOklch))];
+  const blends = [GRAIN_BLEND, ...layers.map(() => 'normal')];
   return [
     `background-color: ${oklchToHex(palette.background)};`,
     `background-image:\n  ${hexLayers.join(',\n  ')};`,
     `background-image:\n  ${oklchLayers.join(',\n  ')};`,
+    `background-blend-mode: ${blends.join(', ')};`,
   ].join('\n');
 }

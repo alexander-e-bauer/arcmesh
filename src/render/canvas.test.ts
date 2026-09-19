@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Palette } from '../palette/harmony';
 import { oklchToHex } from '../palette/oklch';
 import { drawPalette, pngFileName, rgbaString, type Context2D } from './canvas';
+import { GRAIN_BLEND } from './grain';
 import { blobLayer, FALLOFF } from './layers';
 
 const palette: Palette = {
@@ -28,9 +29,18 @@ function fakeContext() {
   const gradients: { stops: [number, string][] }[] = [];
   const ctx = {
     fillStyle: '' as string | CanvasGradient | CanvasPattern,
-    fillRect: (...args: number[]) => ops.push({ kind: 'fillRect', args: [...args, ctx.fillStyle] }),
+    globalCompositeOperation: 'source-over' as GlobalCompositeOperation,
+    fillRect: (...args: number[]) =>
+      ops.push({ kind: 'fillRect', args: [...args, ctx.fillStyle, ctx.globalCompositeOperation] }),
     save: () => ops.push({ kind: 'save', args: [] }),
-    restore: () => ops.push({ kind: 'restore', args: [] }),
+    restore: () => {
+      ctx.globalCompositeOperation = 'source-over';
+      ops.push({ kind: 'restore', args: [] });
+    },
+    createPattern: (image: CanvasImageSource, repetition: string | null) => {
+      ops.push({ kind: 'pattern', args: [image, repetition] });
+      return { pattern: image } as unknown as CanvasPattern;
+    },
     translate: (x: number, y: number) => ops.push({ kind: 'translate', args: [x, y] }),
     scale: (x: number, y: number) => ops.push({ kind: 'scale', args: [x, y] }),
     createRadialGradient: (...args: number[]) => {
@@ -42,6 +52,8 @@ function fakeContext() {
   };
   return { ctx: ctx as Context2D, ops, gradients };
 }
+
+const tile = { tile: true } as unknown as CanvasImageSource;
 
 describe('rgbaString', () => {
   it('formats eight-bit channels with the given alpha', () => {
@@ -59,9 +71,9 @@ describe('pngFileName', () => {
 describe('drawPalette', () => {
   it('fills the background, then paints layers bottom-up, creases first', () => {
     const { ctx, ops, gradients } = fakeContext();
-    drawPalette(ctx, palette, 200, 100);
+    drawPalette(ctx, palette, 200, 100, tile);
 
-    expect(ops[0]).toEqual({ kind: 'fillRect', args: [0, 0, 200, 100, oklchToHex(palette.background)] });
+    expect(ops[0]).toEqual({ kind: 'fillRect', args: [0, 0, 200, 100, oklchToHex(palette.background), 'source-over'] });
     expect(gradients).toHaveLength(5);
 
     const first = gradients[0].stops;
@@ -80,7 +92,7 @@ describe('drawPalette', () => {
 
   it('positions and scales each gradient in pixels', () => {
     const { ctx, ops } = fakeContext();
-    drawPalette(ctx, palette, 200, 100);
+    drawPalette(ctx, palette, 200, 100, tile);
     const translates = ops.filter((op) => op.kind === 'translate').map((op) => op.args);
     const scales = ops.filter((op) => op.kind === 'scale').map((op) => op.args);
     // Bottom-up: the crease, then stops 3, 2, 1, 0.
@@ -91,7 +103,20 @@ describe('drawPalette', () => {
     expect(scales[1]).toEqual([blob.rx * 200, blob.ry * 100]);
     const rects = ops.filter((op) => op.kind === 'fillRect').slice(1).map((op) => op.args.slice(0, 4));
     expect(rects[0]).toEqual([-260 / 180, -20 / 90, 200 / 180, 100 / 90]);
-    expect(ops.filter((op) => op.kind === 'save')).toHaveLength(5);
-    expect(ops.filter((op) => op.kind === 'restore')).toHaveLength(5);
+    expect(ops.filter((op) => op.kind === 'save')).toHaveLength(6);
+    expect(ops.filter((op) => op.kind === 'restore')).toHaveLength(6);
+  });
+
+  it('paints the grain tile last, repeated, under the grain blend, then restores the blend', () => {
+    const { ctx, ops } = fakeContext();
+    drawPalette(ctx, palette, 200, 100, tile);
+    const fills = ops.filter((op) => op.kind === 'fillRect');
+    const last = fills[fills.length - 1];
+    expect(last.args.slice(0, 4)).toEqual([0, 0, 200, 100]);
+    expect(last.args[4]).toEqual({ pattern: tile });
+    expect(last.args[5]).toBe(GRAIN_BLEND);
+    expect(ops.filter((op) => op.kind === 'pattern')).toEqual([{ kind: 'pattern', args: [tile, 'repeat'] }]);
+    expect(fills.slice(0, -1).every((op) => op.args[5] === 'source-over')).toBe(true);
+    expect(ctx.globalCompositeOperation).toBe('source-over');
   });
 });

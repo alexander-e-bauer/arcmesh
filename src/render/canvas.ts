@@ -9,15 +9,6 @@ export type Context2D = Pick<
   'fillStyle' | 'fillRect' | 'save' | 'restore' | 'translate' | 'scale' | 'createRadialGradient'
 >;
 
-// CSS's default radial-gradient size: an ellipse with the farthest-side
-// aspect ratio, scaled so its edge passes through the farthest corner.
-export function farthestCornerRadii(cx: number, cy: number, width: number, height: number): { rx: number; ry: number } {
-  return {
-    rx: Math.SQRT2 * Math.max(cx, width - cx),
-    ry: Math.SQRT2 * Math.max(cy, height - cy),
-  };
-}
-
 export function rgbaString(color: Oklch, alpha: number): string {
   const { r, g, b } = oklchToSrgb(color);
   const channel = (value: number) => Math.round(Math.min(1, Math.max(0, value)) * 255);
@@ -27,10 +18,8 @@ export function rgbaString(color: Oklch, alpha: number): string {
 function drawLayer(ctx: Context2D, layer: Layer, width: number, height: number): void {
   const cx = layer.cx * width;
   const cy = layer.cy * height;
-  const { rx, ry } =
-    layer.size === 'farthest-corner'
-      ? farthestCornerRadii(cx, cy, width, height)
-      : { rx: layer.size.rx * width, ry: layer.size.ry * height };
+  const rx = layer.size.rx * width;
+  const ry = layer.size.ry * height;
 
   // Draw a unit circle gradient under a scale, which is how an ellipse is
   // made in a 2D context; the fill rectangle is the canvas in that space.

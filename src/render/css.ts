@@ -25,12 +25,9 @@ function percent(fraction: number): string {
 function layerCss(layer: Layer, paint: Paint): string {
   const x = (layer.cx * 100).toFixed(1);
   const y = (layer.cy * 100).toFixed(1);
-  const size =
-    layer.size === 'farthest-corner'
-      ? ''
-      : `${(layer.size.rx * 100).toFixed(1)}% ${(layer.size.ry * 100).toFixed(1)}% `;
+  const size = `${(layer.size.rx * 100).toFixed(1)}% ${(layer.size.ry * 100).toFixed(1)}%`;
   const stops = layer.stops.map((stop) => `${paint(stop.color, stop.alpha)} ${percent(stop.offset)}`).join(', ');
-  return `radial-gradient(${size}at ${x}% ${y}%, ${stops})`;
+  return `radial-gradient(${size} at ${x}% ${y}%, ${stops})`;
 }
 
 // One background-color, then two background-image declarations: hex first,

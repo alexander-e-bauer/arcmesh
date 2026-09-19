@@ -1,9 +1,14 @@
 import type { Crease, Palette, Stop } from '../palette/harmony';
 import type { Oklch } from '../palette/oklch';
+import { createRng } from '../palette/rng';
 
-// Where each blob fades out, as a fraction of the gradient box. Varying it by
+// Where each blob fades out, as a fraction of its ellipse. Varying it by
 // stop keeps the blobs from reading as identical circles.
 export const FALLOFF = [65, 55, 75, 60, 70] as const;
+
+// Each blob's ellipse is the farthest-corner ellipse stretched by this much
+// on each axis, so four blobs are not four copies of the canvas's shape.
+export const BLOB_STRETCH: readonly [number, number] = [0.8, 1.25];
 
 // A crease's hard edge sits just inside the ellipse so the cut is
 // antialiased rather than jagged.
@@ -15,7 +20,11 @@ export interface GradientStop {
   alpha: 0 | 1;
 }
 
-export type LayerSize = 'farthest-corner' | { rx: number; ry: number };
+// Radii in unit canvas space: rx in widths, ry in heights.
+export interface LayerSize {
+  rx: number;
+  ry: number;
+}
 
 // One radial gradient in unit canvas space. Every renderer paints this list
 // and nothing else, which is what keeps the CSS and the PNG identical.
@@ -30,15 +39,40 @@ function colorOf(stop: Stop): Oklch {
   return { l: stop.l, c: stop.c, h: stop.h };
 }
 
+// CSS's default radial-gradient size: an ellipse with the farthest-side
+// aspect ratio, scaled by root two so its edge passes through the farthest
+// corner.
+export function farthestCorner(x: number, y: number): LayerSize {
+  return {
+    rx: Math.SQRT2 * Math.max(x, 1 - x),
+    ry: Math.SQRT2 * Math.max(y, 1 - y),
+  };
+}
+
+// The stretch comes from the stop's color, rounded the way the codec writes
+// it, rather than from a fresh draw: a locked stop keeps its shape, a shared
+// link renders the same, and a drag cannot change it because position is
+// not an input.
+export function blobStretch(color: Oklch): { sx: number; sy: number } {
+  const key = Math.round(color.h * 100) * 1_000_003 + Math.round(color.c * 1000) * 1009 + Math.round(color.l * 1000);
+  const rng = createRng(key);
+  return {
+    sx: rng.range(BLOB_STRETCH[0], BLOB_STRETCH[1]),
+    sy: rng.range(BLOB_STRETCH[0], BLOB_STRETCH[1]),
+  };
+}
+
 // Each gradient fades to its own color at alpha 0, never to transparent
 // black, so only alpha varies inside a layer and the interpolation color
 // space cannot show.
 export function blobLayer(stop: Stop, index: number): Layer {
   const color = colorOf(stop);
+  const base = farthestCorner(stop.x, stop.y);
+  const { sx, sy } = blobStretch(color);
   return {
     cx: stop.x,
     cy: stop.y,
-    size: 'farthest-corner',
+    size: { rx: base.rx * sx, ry: base.ry * sy },
     stops: [
       { offset: 0, color, alpha: 1 },
       { offset: FALLOFF[index % FALLOFF.length] / 100, color, alpha: 0 },

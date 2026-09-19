@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Palette } from '../palette/harmony';
 import { oklchToHex } from '../palette/oklch';
-import { drawPalette, farthestCornerRadii, pngFileName, rgbaString, type Context2D } from './canvas';
-import { FALLOFF } from './layers';
+import { drawPalette, pngFileName, rgbaString, type Context2D } from './canvas';
+import { blobLayer, FALLOFF } from './layers';
 
 const palette: Palette = {
   seed: 7,
@@ -42,14 +42,6 @@ function fakeContext() {
   };
   return { ctx: ctx as Context2D, ops, gradients };
 }
-
-describe('farthestCornerRadii', () => {
-  it('scales the farthest-side ellipse by root two so it touches the farthest corner', () => {
-    expect(farthestCornerRadii(0, 0, 200, 100)).toEqual({ rx: 200 * Math.SQRT2, ry: 100 * Math.SQRT2 });
-    expect(farthestCornerRadii(100, 50, 200, 100)).toEqual({ rx: 100 * Math.SQRT2, ry: 50 * Math.SQRT2 });
-    expect(farthestCornerRadii(150, 20, 200, 100)).toEqual({ rx: 150 * Math.SQRT2, ry: 80 * Math.SQRT2 });
-  });
-});
 
 describe('rgbaString', () => {
   it('formats eight-bit channels with the given alpha', () => {
@@ -95,7 +87,8 @@ describe('drawPalette', () => {
     expect(translates[0]).toEqual([260, 20]);
     expect(scales[0]).toEqual([180, 90]);
     expect(translates[1]).toEqual([140, 75]);
-    expect(scales[1]).toEqual([140 * Math.SQRT2, 75 * Math.SQRT2]);
+    const blob = blobLayer(palette.stops[3], 3).size;
+    expect(scales[1]).toEqual([blob.rx * 200, blob.ry * 100]);
     const rects = ops.filter((op) => op.kind === 'fillRect').slice(1).map((op) => op.args.slice(0, 4));
     expect(rects[0]).toEqual([-260 / 180, -20 / 90, 200 / 180, 100 / 90]);
     expect(ops.filter((op) => op.kind === 'save')).toHaveLength(5);

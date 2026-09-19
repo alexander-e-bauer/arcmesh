@@ -46,6 +46,11 @@ export const ARC_MIN = 30;
 export const ARC_MAX = 90;
 export const ACCENT_PROBABILITY = 0.35;
 export const ACCENT_CHROMA_SCALE = 0.6;
+// The accent sits this far from the arc's center, on either side: split
+// complementary rather than complementary, because an sRGB blend of two
+// opposite hues cancels to grey where a split complement keeps chroma.
+// With a 90 degree arc the accent is still at least 60 from every stop.
+export const ACCENT_OFFSET: readonly [number, number] = [105, 135];
 
 // An accent in the brightest slot was landing near 0.04 chroma, which reads
 // grey; the floor keeps it a color. The gamut clamp may still lower it.
@@ -120,7 +125,11 @@ export function pickHues(rng: Rng, count: number): Hues {
 
   const accentIndex = rng.chance(ACCENT_PROBABILITY) ? rng.int(0, count - 1) : -1;
   if (accentIndex >= 0) {
-    hues[accentIndex] = wrapHue(baseHue + 180 + rng.range(-30, 30));
+    // One draw carries both the side and the distance.
+    const u = rng.range(-1, 1);
+    const side = u < 0 ? -1 : 1;
+    const offset = ACCENT_OFFSET[0] + Math.abs(u) * (ACCENT_OFFSET[1] - ACCENT_OFFSET[0]);
+    hues[accentIndex] = wrapHue(baseHue + arc / 2 + side * offset);
   }
 
   return { baseHue, arc, accentIndex, hues };
@@ -265,8 +274,11 @@ export function generatePalette(seed: number, options: GenerateOptions = {}): Pa
   const { baseHue, accentIndex, hues } = pickHues(rng, count);
   const w = paletteBandWeight(hues, accentIndex);
   const lightness = pickLightness(rng, count, w);
-  if (accentIndex >= 0 && bandWeight(hues[accentIndex]) >= 0.5) {
-    // A dim yellow accent is olive; give it the brightest slot.
+  if (accentIndex >= 0) {
+    // The accent takes the brightest slot. A dim yellow accent is olive,
+    // and any accent at the lightness of its neighbors blends to a flat
+    // grey between them; at the top of the ramp the blend reads as a
+    // highlight over the arc instead.
     const brightest = lightness.indexOf(Math.max(...lightness));
     [lightness[accentIndex], lightness[brightest]] = [lightness[brightest], lightness[accentIndex]];
   }

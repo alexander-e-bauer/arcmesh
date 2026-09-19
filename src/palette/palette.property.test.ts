@@ -79,7 +79,7 @@ describe('a thousand generated palettes', () => {
       // a yellow palette under the lifted floor.
       const floor = LIGHTNESS_MIN + BAND_LIFT_MIN * w - LIGHTNESS_JITTER - DEEP_DROP[1] * (1 - w) - 1e-9;
       for (const stop of others) expect(stop.l).toBeGreaterThanOrEqual(floor);
-      if (accent >= 0 && bandWeight(palette.stops[accent].h) >= 0.5) {
+      if (accent >= 0) {
         expect(palette.stops[accent].l).toBe(Math.max(...palette.stops.map((stop) => stop.l)));
       }
     }

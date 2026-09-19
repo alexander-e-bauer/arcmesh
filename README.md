@@ -10,7 +10,7 @@ Live at [arcmesh.aebauer.dev](https://arcmesh.aebauer.dev). Press Space.
 
 Mesh gradient tools usually make you pick the colors, which is the hard part. Their randomize buttons reshuffle positions and leave the colors alone, or sample hues independently and produce grey smears where far-apart hues blend.
 
-arcmesh picks hues on one arc of the color wheel, 30 to 90 degrees wide, assigns lightness along a ramp so every mesh has a bright region and a deep region, drops the darkest stop further on some palettes for depth, and lets an occasional accent sit opposite the arc at reduced chroma so it blends without going muddy. Everything happens in OKLCH, where equal numeric steps read as equal visual steps, and every color is clamped into the sRGB gamut by binary search on chroma rather than by clipping channels.
+arcmesh picks hues on one arc of the color wheel, 30 to 90 degrees wide, assigns lightness along a ramp so every mesh has a bright region and a deep region, drops the darkest stop further on some palettes for depth, and lets an occasional accent sit split-complementary to the arc, at reduced chroma and in the brightest slot, so it reads as a highlight rather than blending to grey. Everything happens in OKLCH, where equal numeric steps read as equal visual steps, and every color is clamped into the sRGB gamut by binary search on chroma rather than by clipping channels.
 
 Some palettes carry a crease, the fold a real mesh gradient makes: a hard curved edge on one side of a color region, soft on the others. Each crease is one more radial gradient, an ellipse of the stop's color centered off the canvas with a hard stop at its edge, painted below the blobs so their soft falloffs veil it, so it is still plain CSS.
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ACCENT_CHROMA_MIN,
+  ACCENT_OFFSET,
   ARC_MAX,
   ARC_MIN,
   BAND_LIFT_MIN,
@@ -69,18 +70,35 @@ describe('pickHues', () => {
     }
   });
 
-  it('places the accent opposite the base hue with up to 30 degrees of play', () => {
+  it('places the accent split-complementary to the arc center, on either side', () => {
     const rng = createRng(3);
     let accents = 0;
+    let clockwise = 0;
     for (let i = 0; i < 1000; i++) {
-      const { baseHue, accentIndex, hues } = pickHues(rng, 4);
+      const { baseHue, arc, accentIndex, hues } = pickHues(rng, 4);
       if (accentIndex < 0) continue;
       accents++;
-      const delta = Math.abs(signedHueDelta(baseHue + 180, hues[accentIndex]));
-      expect(delta).toBeLessThanOrEqual(30 + 1e-9);
+      const delta = signedHueDelta(baseHue + arc / 2, hues[accentIndex]);
+      expect(Math.abs(delta)).toBeGreaterThanOrEqual(ACCENT_OFFSET[0] - 1e-9);
+      expect(Math.abs(delta)).toBeLessThanOrEqual(ACCENT_OFFSET[1] + 1e-9);
+      if (delta > 0) clockwise++;
     }
     expect(accents).toBeGreaterThan(250);
     expect(accents).toBeLessThan(450);
+    expect(clockwise / accents).toBeGreaterThan(0.4);
+    expect(clockwise / accents).toBeLessThan(0.6);
+  });
+
+  it('never puts the accent within 60 degrees of any arc stop', () => {
+    const rng = createRng(5);
+    for (let i = 0; i < 1000; i++) {
+      const { accentIndex, hues } = pickHues(rng, 5);
+      if (accentIndex < 0) continue;
+      hues.forEach((h, index) => {
+        if (index === accentIndex) return;
+        expect(Math.abs(signedHueDelta(h, hues[accentIndex]))).toBeGreaterThanOrEqual(60 - 1e-9);
+      });
+    }
   });
 
   it('returns hues already wrapped into [0, 360)', () => {
@@ -267,17 +285,20 @@ describe('generatePalette', () => {
     expect(checked).toBeGreaterThan(50);
   });
 
-  it('gives an in-band accent the brightest slot', () => {
-    let checked = 0;
+  it('gives every accent the brightest slot, in the band or out of it', () => {
+    let inBand = 0;
+    let outOfBand = 0;
     for (let seed = 1; seed <= 600; seed++) {
       const { hues, accentIndex } = huesFor(seed);
-      if (accentIndex < 0 || bandWeight(hues[accentIndex]) < 0.5) continue;
+      if (accentIndex < 0) continue;
       const palette = generatePalette(seed);
       const brightest = Math.max(...palette.stops.map((stop) => stop.l));
       expect(palette.stops[accentIndex].l).toBe(brightest);
-      checked++;
+      if (bandWeight(hues[accentIndex]) >= 0.5) inBand++;
+      else outOfBand++;
     }
-    expect(checked).toBeGreaterThan(5);
+    expect(inBand).toBeGreaterThan(5);
+    expect(outOfBand).toBeGreaterThan(50);
   });
 
   it('drops the darkest slot below the ramp on some palettes outside the yellow band, never inside it', () => {

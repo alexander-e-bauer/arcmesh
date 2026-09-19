@@ -3,6 +3,7 @@ import {
   ACCENT_CHROMA_MIN,
   ARC_MAX,
   ARC_MIN,
+  BAND_LIFT_MIN,
   bandWeight,
   chromaCeiling,
   coversOtherStop,
@@ -10,8 +11,12 @@ import {
   CREASE_INSET,
   CREASE_MAX,
   CREASE_MIN_DISTANCE,
+  DEEP_DROP,
+  DEEP_PROBABILITY,
   exitDistance,
   generatePalette,
+  LIGHTNESS_JITTER,
+  LIGHTNESS_MIN,
   neighborAlpha,
   paletteBandWeight,
   pickCreaseCount,
@@ -273,6 +278,46 @@ describe('generatePalette', () => {
       checked++;
     }
     expect(checked).toBeGreaterThan(5);
+  });
+
+  it('drops the darkest slot below the ramp on some palettes outside the yellow band, never inside it', () => {
+    // The ramp alone never goes below this; only the deep drop can.
+    const rampFloor = LIGHTNESS_MIN - LIGHTNESS_JITTER - 1e-9;
+    let outside = 0;
+    let deep = 0;
+    for (let seed = 1; seed <= 1000; seed++) {
+      const { hues, accentIndex } = huesFor(seed);
+      const w = paletteBandWeight(hues, accentIndex);
+      const darkest = Math.min(...generatePalette(seed).stops.map((stop) => stop.l));
+      if (w >= 1 - 1e-9) {
+        expect(darkest).toBeGreaterThanOrEqual(LIGHTNESS_MIN + BAND_LIFT_MIN - LIGHTNESS_JITTER - 1e-9);
+        continue;
+      }
+      if (w > 0) continue;
+      outside++;
+      if (darkest < rampFloor) {
+        deep++;
+        expect(darkest).toBeGreaterThanOrEqual(rampFloor - DEEP_DROP[1]);
+        expect(darkest).toBeLessThanOrEqual(LIGHTNESS_MIN + LIGHTNESS_JITTER - DEEP_DROP[0] + 1e-9);
+      }
+    }
+    expect(outside).toBeGreaterThan(200);
+    expect(deep / outside).toBeGreaterThan(DEEP_PROBABILITY - 0.1);
+    expect(deep / outside).toBeLessThan(DEEP_PROBABILITY + 0.1);
+  });
+
+  it('draws the deep drop after the positions, so they stay put for existing seeds', () => {
+    // Rebuild the draws up to the positions in the documented order; the
+    // palette's positions must come from those same draws.
+    for (let seed = 1; seed <= 200; seed++) {
+      const rng = createRng(seed);
+      const count = pickStopCount(rng);
+      const { hues, accentIndex } = pickHues(rng, count);
+      pickLightness(rng, count, paletteBandWeight(hues, accentIndex));
+      rng.range(0.7, 1.0);
+      const positions = pickPositions(rng, count);
+      expect(generatePalette(seed).stops.map(({ x, y }) => ({ x, y }))).toEqual(positions);
+    }
   });
 });
 

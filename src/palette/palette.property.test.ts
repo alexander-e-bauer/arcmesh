@@ -4,6 +4,7 @@ import {
   bandWeight,
   BAND_LIFT_MIN,
   CREASE_MAX,
+  DEEP_DROP,
   generatePalette,
   LIGHTNESS_JITTER,
   LIGHTNESS_MIN,
@@ -74,7 +75,9 @@ describe('a thousand generated palettes', () => {
       const accent = accentOf(palette);
       const others = palette.stops.filter((_, i) => i !== accent);
       const w = Math.max(0, ...others.map((stop) => bandWeight(stop.h)));
-      const floor = LIGHTNESS_MIN + BAND_LIFT_MIN * w - LIGHTNESS_JITTER - 1e-9;
+      // The deep drop scales away with the band weight, so it never takes
+      // a yellow palette under the lifted floor.
+      const floor = LIGHTNESS_MIN + BAND_LIFT_MIN * w - LIGHTNESS_JITTER - DEEP_DROP[1] * (1 - w) - 1e-9;
       for (const stop of others) expect(stop.l).toBeGreaterThanOrEqual(floor);
       if (accent >= 0 && bandWeight(palette.stops[accent].h) >= 0.5) {
         expect(palette.stops[accent].l).toBe(Math.max(...palette.stops.map((stop) => stop.l)));

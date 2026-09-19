@@ -57,6 +57,12 @@ export const LIGHTNESS_MIN = 0.45;
 export const LIGHTNESS_MAX = 0.85;
 export const LIGHTNESS_JITTER = 0.04;
 
+// The ramp's floor keeps every mesh pastel. Some palettes drop their
+// darkest slot further, to a plum or a navy, for depth. The drop scales
+// away with the band weight because a deep yellow is brown.
+export const DEEP_PROBABILITY = 0.4;
+export const DEEP_DROP: readonly [number, number] = [0.08, 0.14];
+
 // Yellow has almost no chroma at mid lightness, so a palette based in the
 // band around hue 100 lifts its ramp. The weight is a raised cosine, 1 at
 // the band center, 0 at its edges.
@@ -268,20 +274,28 @@ export function generatePalette(seed: number, options: GenerateOptions = {}): Pa
   const positions = pickPositions(rng, count);
   const creases = pickCreases(rng, positions);
 
-  const stops: Stop[] = hues.map((h, i) => {
-    const l = lightness[i];
-    let c = chromaCeiling(l) * chromaScale;
-    if (i === accentIndex) c = Math.max(ACCENT_CHROMA_MIN, c * ACCENT_CHROMA_SCALE);
-    const color = clampChroma({ l, c, h });
-    return { ...color, x: positions[i].x, y: positions[i].y, locked: false };
-  });
-
   // The flip is always drawn so the sequence does not depend on the weight.
   const dark = rng.chance(0.5);
   const background = clampChroma({
     l: dark || w >= 0.5 ? BACKGROUND_DARK : BACKGROUND_LIGHT,
     c: BACKGROUND_CHROMA,
     h: baseHue,
+  });
+
+  // Drawn last, and both draws always taken, so every earlier draw stays
+  // put for seeds that existed before the drop.
+  const drop = rng.range(DEEP_DROP[0], DEEP_DROP[1]);
+  if (rng.chance(DEEP_PROBABILITY)) {
+    const darkest = lightness.indexOf(Math.min(...lightness));
+    lightness[darkest] -= drop * (1 - w);
+  }
+
+  const stops: Stop[] = hues.map((h, i) => {
+    const l = lightness[i];
+    let c = chromaCeiling(l) * chromaScale;
+    if (i === accentIndex) c = Math.max(ACCENT_CHROMA_MIN, c * ACCENT_CHROMA_SCALE);
+    const color = clampChroma({ l, c, h });
+    return { ...color, x: positions[i].x, y: positions[i].y, locked: false };
   });
 
   return { stops, creases, background, seed };

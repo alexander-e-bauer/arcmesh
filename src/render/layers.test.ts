@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Palette } from '../palette/harmony';
+import { decodePalette, encodePalette } from '../palette/codec';
+import { generatePalette, type Palette } from '../palette/harmony';
 import { BLOB_STRETCH, blobLayer, blobStretch, creaseLayer, CREASE_EDGE, FALLOFF, farthestCorner, paletteToLayers } from './layers';
 
 const palette: Palette = {
@@ -38,6 +39,23 @@ describe('blobStretch', () => {
     expect(blobStretch({ l: 0.8501, c: 0.0801, h: 240.001 })).toEqual(a);
     expect(blobStretch({ l: 0.85, c: 0.08, h: 241 })).not.toEqual(a);
     expect(blobStretch({ l: 0.75, c: 0.08, h: 240 })).not.toEqual(a);
+  });
+
+  it('survives the codec round trip for every stop of a thousand palettes', () => {
+    // Positions round to three decimals in the link, so the ellipse can
+    // move by that much; the stretch must not move at all.
+    for (let i = 1; i <= 1000; i++) {
+      const palette = generatePalette(i * 7919);
+      const decoded = decodePalette(encodePalette(palette));
+      expect(decoded).not.toBeNull();
+      expect(decoded!.stops.map(blobStretch)).toEqual(palette.stops.map(blobStretch));
+    }
+  });
+
+  it('is exactly the hash of the stop as the codec writes it', () => {
+    const color = { l: 0.85, c: 0.08, h: 240 };
+    expect(blobStretch(color)).toEqual(blobStretch({ l: 0.8504, c: 0.0796, h: 240.004 }));
+    expect(blobStretch(color)).not.toEqual(blobStretch({ l: 0.8505, c: 0.08, h: 240 }));
   });
 
   it('is not the same on both axes as a rule', () => {

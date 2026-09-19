@@ -49,13 +49,23 @@ export function farthestCorner(x: number, y: number): LayerSize {
   };
 }
 
-// The stretch comes from the stop's color, rounded the way the codec writes
-// it, rather than from a fresh draw: a locked stop keeps its shape, a shared
-// link renders the same, and a drag cannot change it because position is
+// FNV-1a over a short string, into 32 bits.
+function hash32(text: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+// The stretch comes from the stop's color as the codec writes it (hue to
+// two decimals, chroma and lightness to three), not from a fresh draw: a
+// locked stop keeps its shape, a decoded link renders the same because the
+// hash sees the same text, and a drag cannot change it because position is
 // not an input.
 export function blobStretch(color: Oklch): { sx: number; sy: number } {
-  const key = Math.round(color.h * 100) * 1_000_003 + Math.round(color.c * 1000) * 1009 + Math.round(color.l * 1000);
-  const rng = createRng(key);
+  const rng = createRng(hash32(`${color.h.toFixed(2)},${color.c.toFixed(3)},${color.l.toFixed(3)}`));
   return {
     sx: rng.range(BLOB_STRETCH[0], BLOB_STRETCH[1]),
     sy: rng.range(BLOB_STRETCH[0], BLOB_STRETCH[1]),

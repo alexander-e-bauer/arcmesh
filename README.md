@@ -12,7 +12,7 @@ Mesh gradient tools usually make you pick the colors, which is the hard part. Th
 
 arcmesh picks hues on one arc of the color wheel, 30 to 90 degrees wide, assigns lightness along a ramp so every mesh has a bright region and a deep region, and lets an occasional accent sit opposite the arc at reduced chroma so it blends without going muddy. Everything happens in OKLCH, where equal numeric steps read as equal visual steps, and every color is clamped into the sRGB gamut by binary search on chroma rather than by clipping channels.
 
-Some palettes carry a crease, the fold a real mesh gradient makes: a hard curved edge on one side of a color region, soft on the others. Each crease is one more radial gradient, an ellipse of the stop's color centered off the canvas with a hard stop at its edge, so it is still plain CSS.
+Some palettes carry a crease, the fold a real mesh gradient makes: a hard curved edge on one side of a color region, soft on the others. Each crease is one more radial gradient, an ellipse of the stop's color centered off the canvas with a hard stop at its edge, painted below the blobs so their soft falloffs veil it, so it is still plain CSS.
 
 The preview is a stack of CSS radial-gradients applied through a style element, and the copied CSS is that same string. What you see is what you paste.
 

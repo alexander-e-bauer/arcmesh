@@ -65,7 +65,7 @@ describe('pngFileName', () => {
 });
 
 describe('drawPalette', () => {
-  it('fills the background, then paints layers bottom-up, creases last', () => {
+  it('fills the background, then paints layers bottom-up, creases first', () => {
     const { ctx, ops, gradients } = fakeContext();
     drawPalette(ctx, palette, 200, 100);
 
@@ -73,15 +73,17 @@ describe('drawPalette', () => {
     expect(gradients).toHaveLength(5);
 
     const first = gradients[0].stops;
-    expect(first).toHaveLength(2);
-    expect(first[0][0]).toBe(0);
-    expect(first[0][1]).toMatch(/^rgba\(\d+, \d+, \d+, 1\)$/);
-    expect(first[1][0]).toBe(FALLOFF[3] / 100);
-    expect(first[1][1]).toMatch(/, 0\)$/);
+    expect(first.map(([offset]) => offset)).toEqual([0, 0.4, 0.6, 0.992, 1]);
+    expect(first.map(([, color]) => color.endsWith(', 1)'))).toEqual([false, false, true, true, false]);
 
-    const last = gradients[4].stops;
-    expect(last.map(([offset]) => offset)).toEqual([0, 0.4, 0.6, 0.992, 1]);
-    expect(last.map(([, color]) => color.endsWith(', 1)'))).toEqual([false, false, true, true, false]);
+    const second = gradients[1].stops;
+    expect(second).toHaveLength(2);
+    expect(second[0][0]).toBe(0);
+    expect(second[0][1]).toMatch(/^rgba\(\d+, \d+, \d+, 1\)$/);
+    expect(second[1][0]).toBe(FALLOFF[3] / 100);
+    expect(second[1][1]).toMatch(/, 0\)$/);
+
+    expect(gradients[4].stops[1][0]).toBe(FALLOFF[0] / 100);
   });
 
   it('positions and scales each gradient in pixels', () => {
@@ -89,13 +91,13 @@ describe('drawPalette', () => {
     drawPalette(ctx, palette, 200, 100);
     const translates = ops.filter((op) => op.kind === 'translate').map((op) => op.args);
     const scales = ops.filter((op) => op.kind === 'scale').map((op) => op.args);
-    // Bottom-up: stops 3, 2, 1, 0, then the crease.
-    expect(translates[0]).toEqual([140, 75]);
-    expect(scales[0]).toEqual([140 * Math.SQRT2, 75 * Math.SQRT2]);
-    expect(translates[4]).toEqual([260, 20]);
-    expect(scales[4]).toEqual([180, 90]);
+    // Bottom-up: the crease, then stops 3, 2, 1, 0.
+    expect(translates[0]).toEqual([260, 20]);
+    expect(scales[0]).toEqual([180, 90]);
+    expect(translates[1]).toEqual([140, 75]);
+    expect(scales[1]).toEqual([140 * Math.SQRT2, 75 * Math.SQRT2]);
     const rects = ops.filter((op) => op.kind === 'fillRect').slice(1).map((op) => op.args.slice(0, 4));
-    expect(rects[4]).toEqual([-260 / 180, -20 / 90, 200 / 180, 100 / 90]);
+    expect(rects[0]).toEqual([-260 / 180, -20 / 90, 200 / 180, 100 / 90]);
     expect(ops.filter((op) => op.kind === 'save')).toHaveLength(5);
     expect(ops.filter((op) => op.kind === 'restore')).toHaveLength(5);
   });

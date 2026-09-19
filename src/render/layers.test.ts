@@ -49,16 +49,16 @@ describe('creaseLayer', () => {
 });
 
 describe('paletteToLayers', () => {
-  it('lists creases first, then blobs in stop order', () => {
+  it('lists blobs in stop order, then creases underneath', () => {
     const layers = paletteToLayers(palette);
     expect(layers).toHaveLength(5);
-    expect(layers[0].size).toEqual({ rx: 0.9, ry: 0.9 });
-    expect(layers.slice(1).map((l) => [l.cx, l.cy])).toEqual([
+    expect(layers.slice(0, 4).map((l) => [l.cx, l.cy])).toEqual([
       [0.25, 0.25],
       [0.75, 0.3],
       [0.2, 0.8],
       [0.7, 0.75],
     ]);
+    expect(layers[4].size).toEqual({ rx: 0.9, ry: 0.9 });
   });
 
   it('has no crease layers when the palette has none', () => {

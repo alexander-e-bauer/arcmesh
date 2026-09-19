@@ -69,7 +69,7 @@ describe('paletteToCss', () => {
     }
   });
 
-  it('emits a crease as an explicit ellipse with a hard edge, listed first', () => {
+  it('emits a crease as an explicit ellipse with a hard edge, listed after the blobs', () => {
     const withCrease = paletteToCss({
       ...palette,
       creases: [{ stop: 1, cx: 1.3, cy: 0.2, r: 0.9, t0: 0.4, t1: 0.6 }],
@@ -78,7 +78,7 @@ describe('paletteToCss', () => {
     const expected = `radial-gradient(90.0% 90.0% at 130.0% 20.0%, ${hex}00 0%, ${hex}00 40%, ${hex} 60%, ${hex} 99.2%, ${hex}00 100%)`;
     expect(withCrease).toContain(expected);
     const firstBlock = withCrease.slice(withCrease.indexOf('background-image:'), withCrease.indexOf('background-image:', withCrease.indexOf('background-image:') + 1));
-    expect(firstBlock.indexOf(expected)).toBeLessThan(firstBlock.indexOf('at 25.0% 25.0%'));
+    expect(firstBlock.indexOf(expected)).toBeGreaterThan(firstBlock.indexOf('at 70.0% 75.0%'));
     expect(withCrease.match(/radial-gradient\(/g)).toHaveLength(10);
     expect(withCrease).toContain(`${formatOklch(palette.stops[1], 0)} 40%, ${formatOklch(palette.stops[1])} 60%`);
   });

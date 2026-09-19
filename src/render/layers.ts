@@ -62,10 +62,14 @@ export function creaseLayer(crease: Crease, stop: Stop): Layer {
   };
 }
 
-// Top layer first, the order CSS lists them in. Creases paint above blobs.
+// Top layer first, the order CSS lists them in. Creases paint below the
+// blobs: painted above them a crease is an opaque disc with a hard rim, and
+// below them the blobs' soft falloffs veil it, so the hard edge shows in the
+// gaps between blob cores and dissolves under them, which is how a fold in
+// the surface reads.
 export function paletteToLayers(palette: Palette): Layer[] {
   return [
-    ...palette.creases.map((crease) => creaseLayer(crease, palette.stops[crease.stop])),
     ...palette.stops.map((stop, index) => blobLayer(stop, index)),
+    ...palette.creases.map((crease) => creaseLayer(crease, palette.stops[crease.stop])),
   ];
 }

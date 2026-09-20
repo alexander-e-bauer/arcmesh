@@ -1,5 +1,5 @@
 import type { Crease, Palette, Stop } from '../palette/harmony';
-import type { Oklch } from '../palette/oklch';
+import { clampChroma, wrapHue, type Oklch } from '../palette/oklch';
 import { createRng } from '../palette/rng';
 
 // Where each blob fades out, as a fraction of its ellipse. Varying it by
@@ -9,6 +9,15 @@ export const FALLOFF = [65, 55, 75, 60, 70] as const;
 // Each blob's ellipse is the farthest-corner ellipse stretched by this much
 // on each axis, so four blobs are not four copies of the canvas's shape.
 export const BLOB_STRETCH: readonly [number, number] = [0.8, 1.25];
+
+// Each blob carries a core above it: the same stop with its hue turned a
+// little to one side and more chroma, at a third of the blob's ellipse,
+// half transparent at the center. In a real mesh the color at a control
+// point is not quite the color of the region around it.
+export const CORE_SCALE = 0.35;
+export const CORE_ALPHA = 0.55;
+export const CORE_HUE_SHIFT: readonly [number, number] = [10, 20];
+export const CORE_CHROMA_BOOST = 1.2;
 
 // A crease's hard edge sits this far inside the ellipse, in canvas units,
 // so the cut is antialiased rather than jagged. Absolute, not a fraction
@@ -62,16 +71,42 @@ function hash32(text: string): number {
   return h >>> 0;
 }
 
-// The stretch comes from the stop's color as the codec writes it (hue to
-// two decimals, chroma and lightness to three), not from a fresh draw: a
-// locked stop keeps its shape, a decoded link renders the same because the
-// hash sees the same text, and a drag cannot change it because position is
-// not an input.
+// The stop's color as the codec writes it (hue to two decimals, chroma and
+// lightness to three). Anything derived from it rather than from a fresh
+// draw stays with a locked stop, renders the same from a decoded link
+// because the hash sees the same text, and cannot change under a drag
+// because position is not an input.
+function codecText(color: Oklch): string {
+  return `${color.h.toFixed(2)},${color.c.toFixed(3)},${color.l.toFixed(3)}`;
+}
+
 export function blobStretch(color: Oklch): { sx: number; sy: number } {
-  const rng = createRng(hash32(`${color.h.toFixed(2)},${color.c.toFixed(3)},${color.l.toFixed(3)}`));
+  const rng = createRng(hash32(codecText(color)));
   return {
     sx: rng.range(BLOB_STRETCH[0], BLOB_STRETCH[1]),
     sy: rng.range(BLOB_STRETCH[0], BLOB_STRETCH[1]),
+  };
+}
+
+// Signed degrees the core's hue turns from the stop's, salted so it is
+// independent of the stretch.
+export function coreShift(color: Oklch): number {
+  const rng = createRng(hash32(`core:${codecText(color)}`));
+  const side = rng.chance(0.5) ? -1 : 1;
+  return side * rng.range(CORE_HUE_SHIFT[0], CORE_HUE_SHIFT[1]);
+}
+
+export function coreLayer(stop: Stop, index: number): Layer {
+  const blob = blobLayer(stop, index);
+  const color = clampChroma({ l: stop.l, c: stop.c * CORE_CHROMA_BOOST, h: wrapHue(stop.h + coreShift(stop)) });
+  return {
+    cx: stop.x,
+    cy: stop.y,
+    size: { rx: blob.size.rx * CORE_SCALE, ry: blob.size.ry * CORE_SCALE },
+    stops: [
+      { offset: 0, color, alpha: CORE_ALPHA },
+      { offset: 1, color, alpha: 0 },
+    ],
   };
 }
 
@@ -116,6 +151,7 @@ export function creaseLayer(crease: Crease, stop: Stop): Layer {
 // the surface reads.
 export function paletteToLayers(palette: Palette): Layer[] {
   return [
+    ...palette.stops.map((stop, index) => coreLayer(stop, index)),
     ...palette.stops.map((stop, index) => blobLayer(stop, index)),
     ...palette.creases.map((crease) => creaseLayer(crease, palette.stops[crease.stop])),
   ];

@@ -40,9 +40,9 @@ describe('paletteToCss', () => {
     expect(css.startsWith('background-color: #')).toBe(true);
   });
 
-  it('emits one hex layer and one oklch layer per stop', () => {
-    expect(css.match(/radial-gradient\(/g)).toHaveLength(8);
-    expect(css.match(/oklch\(/g)).toHaveLength(8);
+  it('emits a blob and a core per stop, in hex and again in oklch', () => {
+    expect(css.match(/radial-gradient\(/g)).toHaveLength(16);
+    expect(css.match(/oklch\(/g)).toHaveLength(16);
   });
 
   it('puts the grain tile on top of both blocks and blends only that layer', () => {
@@ -53,7 +53,7 @@ describe('paletteToCss', () => {
       expect(block.startsWith(`  ${grain},\n  radial-gradient(`)).toBe(true);
     }
     const lines = css.split('\n');
-    expect(lines[lines.length - 1]).toBe(`background-blend-mode: ${GRAIN_BLEND}, normal, normal, normal, normal;`);
+    expect(lines[lines.length - 1]).toBe(`background-blend-mode: ${GRAIN_BLEND}${', normal'.repeat(8)};`);
   });
 
   it('lists one blend mode per layer, creases included', () => {
@@ -61,7 +61,7 @@ describe('paletteToCss', () => {
       ...palette,
       creases: [{ stop: 1, cx: 1.3, cy: 0.2, r: 0.9, t0: 0.4, t1: 0.6 }],
     });
-    expect(withCrease.endsWith(`background-blend-mode: ${GRAIN_BLEND}, normal, normal, normal, normal, normal;`)).toBe(true);
+    expect(withCrease.endsWith(`background-blend-mode: ${GRAIN_BLEND}${', normal'.repeat(9)};`)).toBe(true);
   });
 
   it('puts the hex fallback block before the oklch block', () => {
@@ -84,15 +84,21 @@ describe('paletteToCss', () => {
       expect(f).toBeLessThanOrEqual(75);
     }
     expect(css).not.toContain('transparent');
+    // Blobs fade out between 55 and 75 percent; cores fade out at 100.
     const hexFades = [...css.matchAll(/(#[0-9a-f]{6})00 (\d+)%/g)];
     const oklchFades = [...css.matchAll(/oklch\([^)]*\/ 0\) (\d+)%/g)];
-    expect(hexFades).toHaveLength(4);
-    expect(oklchFades).toHaveLength(4);
-    for (const m of hexFades) {
+    expect(hexFades).toHaveLength(8);
+    expect(oklchFades).toHaveLength(8);
+    const blobFades = hexFades.filter((m) => Number(m[2]) < 100);
+    expect(blobFades).toHaveLength(4);
+    for (const m of blobFades) {
       expect(css).toContain(`${m[1]} 0%`);
       expect(Number(m[2])).toBeGreaterThanOrEqual(55);
       expect(Number(m[2])).toBeLessThanOrEqual(75);
     }
+    const coreFades = hexFades.filter((m) => Number(m[2]) === 100);
+    expect(coreFades).toHaveLength(4);
+    for (const m of coreFades) expect(css).toContain(`${m[1]}8c 0%`);
   });
 
   it('emits a crease as an explicit ellipse with a hard edge, listed after the blobs', () => {
@@ -105,7 +111,7 @@ describe('paletteToCss', () => {
     expect(withCrease).toContain(expected);
     const firstBlock = withCrease.slice(withCrease.indexOf('background-image:'), withCrease.indexOf('background-image:', withCrease.indexOf('background-image:') + 1));
     expect(firstBlock.indexOf(expected)).toBeGreaterThan(firstBlock.indexOf('at 70.0% 75.0%'));
-    expect(withCrease.match(/radial-gradient\(/g)).toHaveLength(10);
+    expect(withCrease.match(/radial-gradient\(/g)).toHaveLength(18);
     expect(withCrease).toContain(`${formatOklch(palette.stops[1], 0)} 40%, ${formatOklch(palette.stops[1])} 60%`);
   });
 
@@ -121,6 +127,6 @@ describe('paletteToCss', () => {
   it('handles a generated five-stop palette, creases included', () => {
     const generated = generatePalette(3, { count: 5 });
     const five = paletteToCss(generated);
-    expect(five.match(/radial-gradient\(/g)).toHaveLength(2 * (5 + generated.creases.length));
+    expect(five.match(/radial-gradient\(/g)).toHaveLength(2 * (5 + 5 + generated.creases.length));
   });
 });

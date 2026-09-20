@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { decodePalette, encodePalette } from '../palette/codec';
 import { generatePalette, type Palette } from '../palette/harmony';
-import { BLOB_STRETCH, blobLayer, blobStretch, creaseLayer, CREASE_FEATHER, FALLOFF, farthestCorner, paletteToLayers } from './layers';
+import { BLOB_STRETCH, blobLayer, blobStretch, CORE_ALPHA, CORE_CHROMA_BOOST, CORE_HUE_SHIFT, CORE_SCALE, coreLayer, coreShift, creaseLayer, CREASE_FEATHER, FALLOFF, farthestCorner, paletteToLayers } from './layers';
+import { clampChroma, wrapHue } from '../palette/oklch';
 
 const palette: Palette = {
   seed: 1,
@@ -96,6 +97,48 @@ describe('blobLayer', () => {
   });
 });
 
+describe('coreShift', () => {
+  it('turns the hue 10 to 20 degrees to either side, hashed from the stop as the codec writes it', () => {
+    let left = 0;
+    for (let i = 0; i < 400; i++) {
+      const delta = coreShift({ l: 0.5 + (i % 40) / 100, c: 0.1, h: (i * 9.1) % 360 });
+      expect(Math.abs(delta)).toBeGreaterThanOrEqual(CORE_HUE_SHIFT[0]);
+      expect(Math.abs(delta)).toBeLessThanOrEqual(CORE_HUE_SHIFT[1]);
+      if (delta < 0) left++;
+    }
+    expect(left).toBeGreaterThan(120);
+    expect(left).toBeLessThan(280);
+    expect(coreShift({ l: 0.85, c: 0.08, h: 240 })).toBe(coreShift({ l: 0.8504, c: 0.0796, h: 240.004 }));
+    expect(coreShift({ l: 0.85, c: 0.08, h: 240 })).not.toBe(blobStretch({ l: 0.85, c: 0.08, h: 240 }).sx);
+  });
+
+  it('survives the codec round trip', () => {
+    for (let i = 1; i <= 300; i++) {
+      const palette = generatePalette(i * 7919);
+      const decoded = decodePalette(encodePalette(palette))!;
+      expect(decoded.stops.map(coreShift)).toEqual(palette.stops.map(coreShift));
+    }
+  });
+});
+
+describe('coreLayer', () => {
+  it('sits on the stop at a third of its blob, in the turned hue with more chroma, half transparent at the center', () => {
+    const stop = palette.stops[2];
+    const blob = blobLayer(stop, 2);
+    const layer = coreLayer(stop, 2);
+    expect(layer.cx).toBe(stop.x);
+    expect(layer.cy).toBe(stop.y);
+    expect(layer.size).toEqual({ rx: blob.size.rx * CORE_SCALE, ry: blob.size.ry * CORE_SCALE });
+    const color = clampChroma({ l: stop.l, c: stop.c * CORE_CHROMA_BOOST, h: wrapHue(stop.h + coreShift(stop)) });
+    expect(layer.stops).toEqual([
+      { offset: 0, color, alpha: CORE_ALPHA },
+      { offset: 1, color, alpha: 0 },
+    ]);
+    expect(color.l).toBe(stop.l);
+    expect(Math.abs(color.h - stop.h)).toBeGreaterThanOrEqual(CORE_HUE_SHIFT[0]);
+  });
+});
+
 describe('creaseLayer', () => {
   it('is an explicit ellipse with a hard edge and an inner fade', () => {
     const layer = creaseLayer(palette.creases[0], palette.stops[1]);
@@ -121,19 +164,23 @@ describe('creaseLayer', () => {
 });
 
 describe('paletteToLayers', () => {
-  it('lists blobs in stop order, then creases underneath', () => {
+  it('lists cores, then blobs, both in stop order, then creases underneath', () => {
     const layers = paletteToLayers(palette);
-    expect(layers).toHaveLength(5);
-    expect(layers.slice(0, 4).map((l) => [l.cx, l.cy])).toEqual([
+    expect(layers).toHaveLength(9);
+    const positions = [
       [0.25, 0.25],
       [0.75, 0.3],
       [0.2, 0.8],
       [0.7, 0.75],
-    ]);
-    expect(layers[4].size).toEqual({ rx: 0.9, ry: 0.9 });
+    ];
+    expect(layers.slice(0, 4).map((l) => [l.cx, l.cy])).toEqual(positions);
+    expect(layers.slice(0, 4).map((l) => l.stops[0].alpha)).toEqual([CORE_ALPHA, CORE_ALPHA, CORE_ALPHA, CORE_ALPHA]);
+    expect(layers.slice(4, 8).map((l) => [l.cx, l.cy])).toEqual(positions);
+    expect(layers.slice(4, 8).map((l) => l.stops[0].alpha)).toEqual([1, 1, 1, 1]);
+    expect(layers[8].size).toEqual({ rx: 0.9, ry: 0.9 });
   });
 
   it('has no crease layers when the palette has none', () => {
-    expect(paletteToLayers({ ...palette, creases: [] })).toHaveLength(4);
+    expect(paletteToLayers({ ...palette, creases: [] })).toHaveLength(8);
   });
 });

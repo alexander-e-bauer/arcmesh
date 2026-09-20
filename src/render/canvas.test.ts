@@ -74,7 +74,7 @@ describe('drawPalette', () => {
     drawPalette(ctx, palette, 200, 100, tile);
 
     expect(ops[0]).toEqual({ kind: 'fillRect', args: [0, 0, 200, 100, oklchToHex(palette.background), 'source-over'] });
-    expect(gradients).toHaveLength(5);
+    expect(gradients).toHaveLength(9);
 
     const first = gradients[0].stops;
     expect(first.map(([offset]) => offset)).toEqual([0, 0.4, 0.6, 1 - CREASE_FEATHER / 0.9, 1]);
@@ -88,6 +88,10 @@ describe('drawPalette', () => {
     expect(second[1][1]).toMatch(/, 0\)$/);
 
     expect(gradients[4].stops[1][0]).toBe(FALLOFF[0] / 100);
+
+    // Cores come last, stop 3 down to stop 0, half transparent at the center.
+    expect(gradients[5].stops[0][1]).toMatch(/, 0\.55\)$/);
+    expect(gradients[8].stops.map(([offset]) => offset)).toEqual([0, 1]);
   });
 
   it('positions and scales each gradient in pixels', () => {
@@ -103,8 +107,8 @@ describe('drawPalette', () => {
     expect(scales[1]).toEqual([blob.rx * 200, blob.ry * 100]);
     const rects = ops.filter((op) => op.kind === 'fillRect').slice(1).map((op) => op.args.slice(0, 4));
     expect(rects[0]).toEqual([-260 / 180, -20 / 90, 200 / 180, 100 / 90]);
-    expect(ops.filter((op) => op.kind === 'save')).toHaveLength(6);
-    expect(ops.filter((op) => op.kind === 'restore')).toHaveLength(6);
+    expect(ops.filter((op) => op.kind === 'save')).toHaveLength(10);
+    expect(ops.filter((op) => op.kind === 'restore')).toHaveLength(10);
   });
 
   it('paints the grain tile last, repeated, under the grain blend, then restores the blend', () => {

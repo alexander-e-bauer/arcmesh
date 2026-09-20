@@ -1,14 +1,14 @@
-import { CREASE_MAX, type Crease, type Light, type Palette, type Stop } from './harmony';
+import { CREASE_MAX, WARP_SEED_MAX, type Crease, type Light, type Palette, type Stop, type Warp } from './harmony';
 import type { Oklch } from './oklch';
 
 // The URL hash carries the whole palette, not just the seed: a locked stop
 // that survived a reroll came from an older seed, so the seed alone cannot
 // rebuild it. Text form, before base64url:
-//   3|<seed>|<bg l>,<bg c>,<bg h>|<h>,<c>,<l>,<x>,<y>,<locked>;...|<stop>,<cx>,<cy>,<r>,<t0>,<t1>;...|<lx>,<ly>,<strength>|<spot>
-// Version 1 had no crease field; version 2 had no light and no spot. Both
-// still decode, with those parts empty.
-const VERSION = '3';
-const FIELDS: Record<string, number> = { '1': 4, '2': 5, '3': 7 };
+//   4|<seed>|<bg l>,<bg c>,<bg h>|<h>,<c>,<l>,<x>,<y>,<locked>;...|<stop>,<cx>,<cy>,<r>,<t0>,<t1>;...|<lx>,<ly>,<strength>|<spot>|<warp seed>,<frequency>,<strength>
+// Version 1 had no crease field; version 2 had no light and no spot;
+// version 3 had no warp. All still decode, with those parts empty.
+const VERSION = '4';
+const FIELDS: Record<string, number> = { '1': 4, '2': 5, '3': 7, '4': 8 };
 const MIN_STOPS = 4;
 const MAX_STOPS = 5;
 
@@ -37,7 +37,10 @@ export function encodePalette(palette: Palette): string {
     ? [palette.light.x.toFixed(3), palette.light.y.toFixed(3), palette.light.strength.toFixed(3)].join(',')
     : '';
   const spot = palette.spot === null ? '' : String(palette.spot);
-  return toBase64Url([VERSION, String(palette.seed), background, stops, creases, light, spot].join('|'));
+  const warp = palette.warp
+    ? [String(palette.warp.seed), palette.warp.frequency.toFixed(2), palette.warp.strength.toFixed(3)].join(',')
+    : '';
+  return toBase64Url([VERSION, String(palette.seed), background, stops, creases, light, spot, warp].join('|'));
 }
 
 export function decodePalette(encoded: string): Palette | null {
@@ -77,7 +80,7 @@ export function decodePalette(encoded: string): Palette | null {
 
   let light: Light | null = null;
   let spot: number | null = null;
-  if (version === '3') {
+  if (version === '3' || version === '4') {
     if (parts[5] !== '') {
       light = parseLight(parts[5].split(','));
       if (light === null) return null;
@@ -88,7 +91,13 @@ export function decodePalette(encoded: string): Palette | null {
     }
   }
 
-  return { seed, background, stops, creases, light, spot, warp: null };
+  let warp: Warp | null = null;
+  if (version === '4' && parts[7] !== '') {
+    warp = parseWarp(parts[7].split(','));
+    if (warp === null) return null;
+  }
+
+  return { seed, background, stops, creases, light, spot, warp };
 }
 
 function parseLight(parts: string[]): Light | null {
@@ -97,6 +106,15 @@ function parseLight(parts: string[]): Light | null {
   const [x, y, strength] = numbers;
   if (!within(x, 0, 1) || !within(y, 0, 1) || !within(strength, 0, 0.5)) return null;
   return { x, y, strength };
+}
+
+function parseWarp(parts: string[]): Warp | null {
+  const numbers = parseNumbers(parts, 3);
+  if (numbers === null) return null;
+  const [seed, frequency, strength] = numbers;
+  if (!Number.isInteger(seed) || seed < 1 || seed > WARP_SEED_MAX) return null;
+  if (!within(frequency, 0.5, 8) || !within(strength, 0, 0.25)) return null;
+  return { seed, frequency, strength };
 }
 
 function parseNumbers(parts: string[], expected: number): number[] | null {

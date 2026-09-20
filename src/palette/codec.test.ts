@@ -106,7 +106,7 @@ describe('palette codec', () => {
       warp: null,
     };
     const encoded = encodePalette(palette);
-    expect(decodeText(encoded).startsWith('3|9|')).toBe(true);
+    expect(decodeText(encoded).startsWith('4|9|')).toBe(true);
     const decoded = decodePalette(encoded);
     expect(decoded).not.toBeNull();
     expect(decoded!.creases).toEqual(palette.creases);
@@ -118,7 +118,7 @@ describe('palette codec', () => {
     expect(palette.light).not.toBeNull();
     const encoded = encodePalette(palette);
     const text = decodeText(encoded);
-    expect(text.split('|')).toHaveLength(7);
+    expect(text.split('|')).toHaveLength(8);
     const decoded = decodePalette(encoded)!;
     expect(decoded.light!.x).toBeCloseTo(palette.light!.x, 3);
     expect(decoded.light!.y).toBeCloseTo(palette.light!.y, 3);
@@ -130,7 +130,7 @@ describe('palette codec', () => {
   it('writes an empty light field for a palette without one', () => {
     const palette = { ...generatePalette(5), light: null, spot: null };
     const text = decodeText(encodePalette(palette));
-    expect(text.split('|').slice(5)).toEqual(['', '']);
+    expect(text.split('|').slice(5, 7)).toEqual(['', '']);
     expect(decodePalette(encodePalette(palette))!.light).toBeNull();
   });
 
@@ -158,6 +158,62 @@ describe('palette codec', () => {
     const decoded = decodePalette(btoa(text))!;
     expect(decoded.light).toBeNull();
     expect(decoded.spot).toBe(2);
+  });
+
+  it('round-trips the warp and writes version 4', () => {
+    const palette = generatePalette(5);
+    expect(palette.warp).not.toBeNull();
+    const encoded = encodePalette(palette);
+    const text = decodeText(encoded);
+    expect(text.startsWith('4|5|')).toBe(true);
+    expect(text.split('|')).toHaveLength(8);
+    expect(text.split('|')[7]).toMatch(/^\d+,\d+\.\d\d,\d\.\d\d\d$/);
+    const decoded = decodePalette(encoded)!;
+    expect(decoded.warp!.seed).toBe(palette.warp!.seed);
+    expect(decoded.warp!.frequency).toBeCloseTo(palette.warp!.frequency, 2);
+    expect(decoded.warp!.strength).toBeCloseTo(palette.warp!.strength, 3);
+    expect(encodePalette(decoded)).toBe(encoded);
+  });
+
+  it('writes an empty warp field for a palette without one, and reads it back as null', () => {
+    const palette = { ...generatePalette(5), warp: null };
+    const text = decodeText(encodePalette(palette));
+    expect(text.split('|')).toHaveLength(8);
+    expect(text.split('|')[7]).toBe('');
+    expect(decodePalette(encodePalette(palette))!.warp).toBeNull();
+  });
+
+  it('decodes a version 3 hash with its light and spot and no warp', () => {
+    const v3 = btoa('3|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0|0,1.3,0.2,0.9,0.4,0.6|0.5,0,0.1|2');
+    const decoded = decodePalette(v3)!;
+    expect(decoded.creases).toHaveLength(1);
+    expect(decoded.light).toEqual({ x: 0.5, y: 0, strength: 0.1 });
+    expect(decoded.spot).toBe(2);
+    expect(decoded.warp).toBeNull();
+  });
+
+  it('accepts a version 4 hash with the warp at its limits', () => {
+    const text = '4|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||||9999,8,0.25';
+    const decoded = decodePalette(btoa(text))!;
+    expect(decoded.warp).toEqual({ seed: 9999, frequency: 8, strength: 0.25 });
+    expect(decoded.light).toBeNull();
+    expect(decoded.spot).toBeNull();
+  });
+
+  it.each([
+    ['version 5', '5|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||||7,2.5,0.1'],
+    ['version 4 with seven fields', '4|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0|||'],
+    ['warp seed zero', '4|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||||0,2.5,0.1'],
+    ['warp seed too large', '4|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||||10000,2.5,0.1'],
+    ['fractional warp seed', '4|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||||7.5,2.5,0.1'],
+    ['warp frequency too low', '4|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||||7,0.4,0.1'],
+    ['warp frequency too high', '4|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||||7,8.5,0.1'],
+    ['warp too strong', '4|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||||7,2.5,0.3'],
+    ['negative warp strength', '4|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||||7,2.5,-0.1'],
+    ['warp with two numbers', '4|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||||7,2.5'],
+    ['warp with a blank number', '4|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||||7,,0.1'],
+  ])('rejects %s', (_name, text) => {
+    expect(decodePalette(btoa(text))).toBeNull();
   });
 
   it('accepts a fold dragged a full canvas past where generation puts it', () => {

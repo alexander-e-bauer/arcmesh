@@ -1,7 +1,8 @@
-import type { Palette } from '../palette/harmony';
+import type { Palette, Warp } from '../palette/harmony';
 import { oklchToHex, oklchToSrgb, type Oklch } from '../palette/oklch';
 import { GRAIN_BLEND, grainTile } from './grain';
 import { paletteToLayers, type Layer } from './layers';
+import { warpFilterCss } from './warp';
 
 // The slice of a 2D context the renderer touches, so tests can hand in a
 // recording fake and the browser hands in the real thing.
@@ -9,7 +10,9 @@ export type Context2D = Pick<
   CanvasRenderingContext2D,
   | 'fillStyle'
   | 'globalCompositeOperation'
+  | 'filter'
   | 'fillRect'
+  | 'drawImage'
   | 'save'
   | 'restore'
   | 'translate'
@@ -54,8 +57,8 @@ function drawGrain(ctx: Context2D, tile: CanvasImageSource, width: number, heigh
   ctx.restore();
 }
 
-// Paints exactly what paletteToCss describes: the background, then the
-// layer list from the bottom up, then the grain.
+// Paints exactly what paletteToCss describes before its filter: the
+// background, then the layer list from the bottom up, then the grain.
 export function drawPalette(ctx: Context2D, palette: Palette, width: number, height: number, grain: CanvasImageSource): void {
   ctx.fillStyle = oklchToHex(palette.background);
   ctx.fillRect(0, 0, width, height);
@@ -64,17 +67,45 @@ export function drawPalette(ctx: Context2D, palette: Palette, width: number, hei
   drawGrain(ctx, grain, width, height);
 }
 
-export function pngFileName(seed: number, width: number, height: number): string {
-  return `arcmesh-${seed}-${width}x${height}.png`;
+// Warps the flat mesh onto ctx in one pass through the filter the CSS
+// names, written for this width. Never per layer: the filter's edge
+// treatment belongs to the finished mesh. An engine that cannot apply a
+// url() filter leaves the property as it was, so the readback is the
+// detect; then nothing is drawn and the caller paints the flat mesh.
+export function warpPalette(ctx: Context2D, flat: CanvasImageSource, warp: Warp, width: number): boolean {
+  const filter = warpFilterCss(warp, width);
+  ctx.save();
+  ctx.filter = filter;
+  const applied = ctx.filter === filter;
+  if (applied) ctx.drawImage(flat, 0, 0);
+  ctx.restore();
+  return applied;
 }
 
-export async function renderPng(palette: Palette, width: number, height: number): Promise<Blob> {
+function blankCanvas(width: number, height: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('canvas 2d context unavailable');
-  drawPalette(ctx, palette, width, height, grainTile());
+  return [canvas, ctx];
+}
+
+export function pngFileName(seed: number, width: number, height: number): string {
+  return `arcmesh-${seed}-${width}x${height}.png`;
+}
+
+export async function renderPng(palette: Palette, width: number, height: number): Promise<Blob> {
+  const [canvas, ctx] = blankCanvas(width, height);
+  const grain = grainTile();
+  if (palette.warp) {
+    // The flat mesh on its own canvas, then one warped draw of it.
+    const [flat, flatCtx] = blankCanvas(width, height);
+    drawPalette(flatCtx, palette, width, height, grain);
+    if (!warpPalette(ctx, flat, palette.warp, width)) ctx.drawImage(flat, 0, 0);
+  } else {
+    drawPalette(ctx, palette, width, height, grain);
+  }
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('png encoding failed'))), 'image/png');
   });

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Palette } from '../palette/harmony';
 import { oklchToHex } from '../palette/oklch';
-import { drawPalette, pngFileName, rgbaString, type Context2D } from './canvas';
+import { drawPalette, pngFileName, rgbaString, warpPalette, type Context2D } from './canvas';
 import { GRAIN_BLEND } from './grain';
 import { blobLayer, CREASE_FEATHER, FALLOFF } from './layers';
+import { warpFilterCss } from './warp';
 
 const palette: Palette = {
   seed: 7,
@@ -26,18 +27,28 @@ interface Op {
 }
 
 // Records every call so a test can read the paint order without a real
-// canvas, which jsdom does not provide.
-function fakeContext() {
+// canvas, which jsdom does not provide. An engine that cannot apply a
+// url() filter leaves the property as it was; `acceptsFilter` fakes that.
+function fakeContext(acceptsFilter = true) {
   const ops: Op[] = [];
   const gradients: { stops: [number, string][] }[] = [];
+  let filter = 'none';
   const ctx = {
     fillStyle: '' as string | CanvasGradient | CanvasPattern,
     globalCompositeOperation: 'source-over' as GlobalCompositeOperation,
+    get filter() {
+      return filter;
+    },
+    set filter(value: string) {
+      if (acceptsFilter || value === 'none') filter = value;
+    },
     fillRect: (...args: number[]) =>
       ops.push({ kind: 'fillRect', args: [...args, ctx.fillStyle, ctx.globalCompositeOperation] }),
+    drawImage: (image: CanvasImageSource, dx: number, dy: number) => ops.push({ kind: 'drawImage', args: [image, dx, dy, filter] }),
     save: () => ops.push({ kind: 'save', args: [] }),
     restore: () => {
       ctx.globalCompositeOperation = 'source-over';
+      filter = 'none';
       ops.push({ kind: 'restore', args: [] });
     },
     createPattern: (image: CanvasImageSource, repetition: string | null) => {
@@ -53,7 +64,7 @@ function fakeContext() {
       return gradient as unknown as CanvasGradient;
     },
   };
-  return { ctx: ctx as Context2D, ops, gradients };
+  return { ctx: ctx as unknown as Context2D, ops, gradients };
 }
 
 const tile = { tile: true } as unknown as CanvasImageSource;
@@ -125,5 +136,32 @@ describe('drawPalette', () => {
     expect(ops.filter((op) => op.kind === 'pattern')).toEqual([{ kind: 'pattern', args: [tile, 'repeat'] }]);
     expect(fills.slice(0, -1).every((op) => op.args[5] === 'source-over')).toBe(true);
     expect(ctx.globalCompositeOperation).toBe('source-over');
+  });
+});
+
+describe('warpPalette', () => {
+  const warp = { seed: 7, frequency: 3, strength: 0.14 };
+  const flat = { flat: true } as unknown as CanvasImageSource;
+
+  it('draws the flat mesh once through the filter written for the width, inside a save and restore', () => {
+    const { ctx, ops } = fakeContext();
+    expect(warpPalette(ctx, flat, warp, 1920)).toBe(true);
+    expect(ops.map((op) => op.kind)).toEqual(['save', 'drawImage', 'restore']);
+    expect(ops[1].args).toEqual([flat, 0, 0, warpFilterCss(warp, 1920)]);
+    expect(ctx.filter).toBe('none');
+  });
+
+  it('draws nothing and says so when the engine keeps its filter', () => {
+    const { ctx, ops } = fakeContext(false);
+    expect(warpPalette(ctx, flat, warp, 1920)).toBe(false);
+    expect(ops.map((op) => op.kind)).toEqual(['save', 'restore']);
+    expect(ctx.filter).toBe('none');
+  });
+
+  it('is not part of the flat paint', () => {
+    const { ctx, ops } = fakeContext();
+    drawPalette(ctx, { ...palette, warp }, 200, 100, tile);
+    expect(ops.some((op) => op.kind === 'drawImage')).toBe(false);
+    expect(ctx.filter).toBe('none');
   });
 });

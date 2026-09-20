@@ -2,6 +2,7 @@ import type { Palette } from '../palette/harmony';
 import { oklchToHex, type Oklch } from '../palette/oklch';
 import { GRAIN_BLEND, grainCssLayer } from './grain';
 import { paletteToLayers, type Layer } from './layers';
+import { WARP_REFERENCE_WIDTH, warpFilterCss } from './warp';
 
 export { FALLOFF } from './layers';
 
@@ -40,17 +41,22 @@ function layerCss(layer: Layer, paint: Paint): string {
 // oklch second. An engine that cannot parse oklch() drops the second
 // declaration and keeps the first, so the hex block is the fallback. The
 // grain tile heads both blocks, and the blend-mode list names it alone,
-// one entry per layer, because a shorter list would repeat.
+// one entry per layer, because a shorter list would repeat. A palette with
+// a warp ends with a filter declaration.
 export function paletteToCss(palette: Palette): string {
   const layers = paletteToLayers(palette);
   const grain = grainCssLayer();
   const hexLayers = [grain, ...layers.map((layer) => layerCss(layer, formatHex))];
   const oklchLayers = [grain, ...layers.map((layer) => layerCss(layer, formatOklch))];
   const blends = [GRAIN_BLEND, ...layers.map(() => 'normal')];
-  return [
+  const declarations = [
     `background-color: ${oklchToHex(palette.background)};`,
     `background-image:\n  ${hexLayers.join(',\n  ')};`,
     `background-image:\n  ${oklchLayers.join(',\n  ')};`,
     `background-blend-mode: ${blends.join(', ')};`,
-  ].join('\n');
+  ];
+  // The warp is a filter over the whole element, written for the width
+  // of the app's preview; a link from before the warp emits none.
+  if (palette.warp) declarations.push(`filter: ${warpFilterCss(palette.warp, WARP_REFERENCE_WIDTH)};`);
+  return declarations.join('\n');
 }

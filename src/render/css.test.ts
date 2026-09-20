@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { generatePalette, type Palette } from '../palette/harmony';
 import { FALLOFF, formatHex, formatOklch, paletteToCss } from './css';
 import { GRAIN_BLEND, grainCssLayer } from './grain';
+import { WARP_REFERENCE_WIDTH, warpFilterCss } from './warp';
 
 const palette: Palette = {
   seed: 1,
@@ -57,6 +58,20 @@ describe('paletteToCss', () => {
     }
     const lines = css.split('\n');
     expect(lines[lines.length - 1]).toBe(`background-blend-mode: ${GRAIN_BLEND}${', normal'.repeat(8)};`);
+  });
+
+  it('ends with the warp filter, written for the preview width, and is otherwise unchanged', () => {
+    const warp = { seed: 7, frequency: 3, strength: 0.14 };
+    const warped = paletteToCss({ ...palette, warp });
+    const lines = warped.split('\n');
+    expect(lines[lines.length - 1]).toBe(`filter: ${warpFilterCss(warp, WARP_REFERENCE_WIDTH)};`);
+    expect(lines[lines.length - 2]).toBe(`background-blend-mode: ${GRAIN_BLEND}${', normal'.repeat(8)};`);
+    expect(warped).toBe(`${css}\nfilter: ${warpFilterCss(warp, WARP_REFERENCE_WIDTH)};`);
+  });
+
+  it('emits no filter for a palette without a warp', () => {
+    expect(css).not.toContain('filter:');
+    expect(css.endsWith(';')).toBe(true);
   });
 
   it('lists one blend mode per layer, creases included', () => {
@@ -133,5 +148,6 @@ describe('paletteToCss', () => {
     const spot = generated.spot === null ? 0 : 1;
     expect(five.match(/radial-gradient\(/g)).toHaveLength(2 * (2 + spot + 5 + 5 + generated.creases.length));
     expect(five).toContain(`${formatHex({ l: 1, c: 0, h: 0 }, generated.light!.strength)} 0%`);
+    expect(five.endsWith(`filter: ${warpFilterCss(generated.warp!, WARP_REFERENCE_WIDTH)};`)).toBe(true);
   });
 });

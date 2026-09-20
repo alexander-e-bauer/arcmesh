@@ -89,6 +89,34 @@ describe('App', () => {
     expect(paletteInUrl()!.seed).toBe(seed);
   });
 
+  it('drags a stop and its crease together into the URL', async () => {
+    let seed = 1;
+    while (!generatePalette(seed).creases.some((c) => c.stop === 0)) seed++;
+    const palette = generatePalette(seed);
+    window.history.replaceState(null, '', `#${encodePalette(palette)}`);
+    const before = decodePalette(encodePalette(palette))!;
+    const crease = before.creases.find((c) => c.stop === 0)!;
+
+    render(<App />);
+    const canvas = screen.getByTestId('canvas');
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 0, left: 0, top: 0, width: 200, height: 100, right: 200, bottom: 100, toJSON: () => ({}),
+    });
+    const handle = screen.getAllByTestId('handle')[0];
+    fireEvent.pointerDown(handle, { pointerId: 1 });
+    fireEvent.pointerMove(handle, { pointerId: 1, clientX: 50, clientY: 75 });
+    fireEvent.pointerUp(handle, { pointerId: 1 });
+    await settle();
+
+    const after = paletteInUrl()!;
+    expect(after.stops[0].x).toBeCloseTo(0.25, 3);
+    expect(after.stops[0].y).toBeCloseTo(0.75, 3);
+    const moved = after.creases.find((c) => c.stop === 0)!;
+    expect(moved.cx).toBeCloseTo(crease.cx + (0.25 - before.stops[0].x), 3);
+    expect(moved.cy).toBeCloseTo(crease.cy + (0.75 - before.stops[0].y), 3);
+    expect(moved.r).toBeCloseTo(crease.r, 3);
+  });
+
   it('writes the hash once after a burst of changes', async () => {
     render(<App />);
     await waitFor(() => expect(paletteInUrl()).not.toBeNull());

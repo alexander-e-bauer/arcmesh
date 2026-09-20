@@ -335,6 +335,19 @@ export function generatePalette(seed: number, options: GenerateOptions = {}): Pa
   return { stops, creases, background, seed };
 }
 
+// A dragged stop takes its crease along by the same delta, so the hard
+// edge keeps bulging just past the stop instead of staying behind as a
+// sticker. Only the center moves; the radius and the band are unchanged.
+export function moveStop(palette: Palette, index: number, x: number, y: number): Palette {
+  const dx = x - palette.stops[index].x;
+  const dy = y - palette.stops[index].y;
+  return {
+    ...palette,
+    stops: palette.stops.map((stop, i) => (i === index ? { ...stop, x, y } : stop)),
+    creases: palette.creases.map((c) => (c.stop === index ? { ...c, cx: c.cx + dx, cy: c.cy + dy } : c)),
+  };
+}
+
 // Seeds the re-placement of one stop's crease from the reroll's seed, so a
 // reroll is a pure function of the previous palette and the seed.
 export const CREASE_RESEED_STEP = 1_000_003;

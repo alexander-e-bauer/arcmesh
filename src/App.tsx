@@ -4,7 +4,7 @@ import { CopyButton } from './components/CopyButton';
 import { DownloadPanel } from './components/DownloadPanel';
 import { SwatchRail } from './components/SwatchRail';
 import { decodePalette, encodePalette } from './palette/codec';
-import { generatePalette, rerollPalette, type Palette } from './palette/harmony';
+import { generatePalette, moveStop, rerollPalette, type Palette } from './palette/harmony';
 import { randomSeed } from './palette/rng';
 import { paletteToCss } from './render/css';
 
@@ -58,11 +58,8 @@ export default function App() {
     }));
   }
 
-  function moveStop(index: number, x: number, y: number) {
-    setPalette((current) => ({
-      ...current,
-      stops: current.stops.map((stop, i) => (i === index ? { ...stop, x, y } : stop)),
-    }));
+  function move(index: number, x: number, y: number) {
+    setPalette((current) => moveStop(current, index, x, y));
   }
 
   const css = paletteToCss(palette);
@@ -80,7 +77,7 @@ export default function App() {
           <DownloadPanel palette={palette} />
         </div>
       </header>
-      <Canvas palette={palette} onMove={moveStop} />
+      <Canvas palette={palette} onMove={move} />
       <SwatchRail stops={palette.stops} onToggleLock={toggleLock} />
       <pre className="css">{css}</pre>
     </main>

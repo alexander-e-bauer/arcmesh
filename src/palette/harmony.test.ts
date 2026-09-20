@@ -18,6 +18,7 @@ import {
   generatePalette,
   LIGHTNESS_JITTER,
   LIGHTNESS_MIN,
+  moveStop,
   neighborAlpha,
   paletteBandWeight,
   pickCreaseCount,
@@ -30,6 +31,7 @@ import {
 } from './harmony';
 import { createRng } from './rng';
 import { clampChroma } from './oklch';
+import { decodePalette, encodePalette } from './codec';
 
 // Signed circular difference in degrees, in [-180, 180].
 function signedHueDelta(from: number, to: number): number {
@@ -516,6 +518,36 @@ describe('creases', () => {
     }
     expect(total).toBeGreaterThan(300);
     expect(covered / total).toBeLessThan(0.15);
+  });
+
+  it('move with their stop when it is dragged, by the same delta', () => {
+    const locked = lockedWithCrease();
+    const before = locked.creases.find((c) => c.stop === 0)!;
+    const others = locked.creases.filter((c) => c.stop !== 0);
+    const { x, y } = locked.stops[0];
+    const moved = moveStop(locked, 0, x + 0.3, y - 0.2);
+    expect(moved.stops[0]).toEqual({ ...locked.stops[0], x: x + 0.3, y: y - 0.2 });
+    expect(moved.stops.slice(1)).toEqual(locked.stops.slice(1));
+    const after = moved.creases.find((c) => c.stop === 0)!;
+    expect(after.cx).toBeCloseTo(before.cx + 0.3, 12);
+    expect(after.cy).toBeCloseTo(before.cy - 0.2, 12);
+    expect([after.r, after.t0, after.t1]).toEqual([before.r, before.t0, before.t1]);
+    expect(moved.creases.filter((c) => c.stop !== 0)).toEqual(others);
+    expect(moved.background).toBe(locked.background);
+    expect(moved.seed).toBe(locked.seed);
+  });
+
+  it('stay inside the codec window through any drag across the canvas', () => {
+    for (let seed = 1; seed <= 300; seed++) {
+      const palette = generatePalette(seed);
+      for (const c of palette.creases) {
+        for (const [x, y] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+          const moved = moveStop(palette, c.stop, x, y);
+          const roundTrip = decodePalette(encodePalette(moved));
+          expect(roundTrip).not.toBeNull();
+        }
+      }
+    }
   });
 
   it('drop creases of unlocked stops on reroll', () => {

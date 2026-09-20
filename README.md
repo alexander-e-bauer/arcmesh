@@ -14,6 +14,8 @@ arcmesh picks hues on one arc of the color wheel, 30 to 90 degrees wide, assigns
 
 Some palettes carry a crease, the fold a real mesh gradient makes: a hard curved edge on one side of a color region, soft on the others. Each crease is one more radial gradient, an ellipse of the stop's color centered off the canvas with a hard stop at its edge, painted below the blobs so their soft falloffs veil it, so it is still plain CSS.
 
+Some creases are straight: a crease whose center sits far off the canvas is a fold where two patches meet along a line. Every stop carries a core, the same color with its hue turned a little, the way the color at a control point of a real mesh is not quite the color around it. Every mesh is lit from one direction, a white wash from one edge and a shade from the other, and some carry a spot, a point of light at the brightest stop.
+
 A faint grain sits over everything: an SVG tile of fractal noise blended soft-light at 8 percent, which hides banding in the long fades and makes the mesh read as printed rather than computed. It is one more `background-image` layer, a data URI, so the copied CSS still stands alone.
 
 The preview is a stack of CSS radial-gradients applied through a style element, and the copied CSS is that same string. What you see is what you paste.

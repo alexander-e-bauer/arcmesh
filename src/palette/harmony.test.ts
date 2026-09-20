@@ -445,22 +445,77 @@ describe('creases', () => {
     expect(generatePalette(3)).toEqual(generatePalette(3));
   });
 
-  it('survive a reroll on a locked stop and never land fresh on a locked stop', () => {
+  // A palette whose stop 0 carries a crease, with stop 0 locked.
+  function lockedWithCrease() {
     let seed = 1;
     while (!generatePalette(seed).creases.some((c) => c.stop === 0)) seed++;
     const first = generatePalette(seed);
-    const locked = {
+    return {
       ...first,
       stops: first.stops.map((stop, i) => (i === 0 ? { ...stop, locked: true } : stop)),
     };
-    const kept = first.creases.filter((c) => c.stop === 0);
-    for (let next = 100; next < 160; next++) {
+  }
+
+  // The geometry every placed crease satisfies, kept or re-placed.
+  function expectAnchored(c: ReturnType<typeof generatePalette>['creases'][number], at: { x: number; y: number }) {
+    const d = Math.hypot(c.cx - at.x, c.cy - at.y);
+    expect(d).toBeGreaterThanOrEqual(CREASE_MIN_DISTANCE + CREASE_BEYOND[0] - 1e-9);
+    expect(c.cx < 0 || c.cx > 1 || c.cy < 0 || c.cy > 1).toBe(true);
+    expect(c.r - d).toBeGreaterThanOrEqual(CREASE_INSET[0] - 1e-9);
+    expect(c.r - d).toBeLessThanOrEqual(CREASE_INSET[1] + 1e-9);
+    expect(c.t1 * c.r).toBeLessThanOrEqual(d + 1e-9);
+  }
+
+  it('keep a locked stop creased through a reroll and never land fresh on a locked stop', () => {
+    const locked = lockedWithCrease();
+    const kept = locked.creases.find((c) => c.stop === 0)!;
+    let verbatim = 0;
+    let replaced = 0;
+    for (let next = 100; next < 220; next++) {
       const rerolled = rerollPalette(locked, next);
+      const positions = rerolled.stops.map(({ x, y }) => ({ x, y }));
       expect(rerolled.creases.length).toBeLessThanOrEqual(CREASE_MAX);
-      expect(rerolled.creases.filter((c) => c.stop === 0)).toEqual(kept);
-      const fresh = generatePalette(next, { count: first.stops.length }).creases.filter((c) => c.stop !== 0);
-      for (const c of rerolled.creases.filter((c) => c.stop !== 0)) expect(fresh).toContainEqual(c);
+      const own = rerolled.creases.filter((c) => c.stop === 0);
+      expect(own).toHaveLength(1);
+      expectAnchored(own[0], positions[0]);
+      // Kept as it was when it can be; re-placed only when it would have
+      // sat on a fresh stop.
+      if (own[0].cx === kept.cx && own[0].cy === kept.cy && own[0].r === kept.r) {
+        verbatim++;
+        expect(coversOtherStop(kept, positions)).toBe(false);
+      } else {
+        replaced++;
+        expect(coversOtherStop(kept, positions)).toBe(true);
+      }
+      const fresh = generatePalette(next, { count: locked.stops.length }).creases.filter((c) => c.stop !== 0);
+      for (const c of rerolled.creases.filter((c) => c.stop !== 0)) {
+        expectAnchored(c, positions[c.stop]);
+        const original = fresh.find((f) => f.stop === c.stop)!;
+        expect(original).toBeDefined();
+        // A fresh crease is taken as drawn unless it sat on the locked
+        // stop's real position.
+        if (!coversOtherStop(original, positions)) expect(c).toEqual(original);
+      }
     }
+    expect(verbatim).toBeGreaterThan(5);
+    expect(replaced).toBeGreaterThan(20);
+  });
+
+  it('re-place a crease from its own stop, deterministically, and rarely leave it on a stop', () => {
+    const locked = lockedWithCrease();
+    let covered = 0;
+    let total = 0;
+    for (let next = 300; next < 600; next++) {
+      const a = rerollPalette(locked, next);
+      expect(rerollPalette(locked, next)).toEqual(a);
+      const positions = a.stops.map(({ x, y }) => ({ x, y }));
+      for (const c of a.creases) {
+        total++;
+        if (coversOtherStop(c, positions)) covered++;
+      }
+    }
+    expect(total).toBeGreaterThan(300);
+    expect(covered / total).toBeLessThan(0.15);
   });
 
   it('drop creases of unlocked stops on reroll', () => {

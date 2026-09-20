@@ -97,7 +97,11 @@ export const CREASE_INSET: readonly [number, number] = [0.03, 0.12];
 export const CREASE_BAND: readonly [number, number] = [0.03, 0.12];
 export const CREASE_FADE: readonly [number, number] = [0.25, 0.45];
 // How many directions to try before settling for the least covering one.
+// Generation keeps the budget small because every try consumes draws
+// that later stops depend on; a re-placement on reroll has no such
+// constraint and takes twice as many.
 export const CREASE_TRIES = 6;
+export const CREASE_REPLACE_TRIES = 12;
 
 const QUADRANTS: ReadonlyArray<readonly [number, number]> = [
   [0.25, 0.25],
@@ -245,24 +249,27 @@ function worstNeighborAlpha(crease: Crease, stops: readonly Point[]): number {
   return Math.max(0, ...stops.filter((_, i) => i !== crease.stop).map((point) => neighborAlpha(crease, point)));
 }
 
+// Places a crease on one stop, trying up to CREASE_TRIES directions to
+// keep it under half alpha at every other stop. When every direction
+// covers a neighbor, the least covering placement is returned.
+export function placeBestCrease(rng: Rng, stop: number, stops: readonly Point[], tries = CREASE_TRIES): Crease {
+  let best = placeCrease(rng, stop, stops[stop]);
+  let bestAlpha = worstNeighborAlpha(best, stops);
+  for (let attempt = 1; attempt < tries && coversOtherStop(best, stops); attempt++) {
+    const next = placeCrease(rng, stop, stops[stop]);
+    const nextAlpha = worstNeighborAlpha(next, stops);
+    if (nextAlpha < bestAlpha) {
+      best = next;
+      bestAlpha = nextAlpha;
+    }
+  }
+  return best;
+}
+
 export function pickCreases(rng: Rng, stops: readonly Point[]): Crease[] {
   const n = pickCreaseCount(rng);
   const chosen = rng.shuffle(Array.from({ length: stops.length }, (_, i) => i)).slice(0, n);
-  return chosen.map((stop) => {
-    let best = placeCrease(rng, stop, stops[stop]);
-    let bestAlpha = worstNeighborAlpha(best, stops);
-    for (let attempt = 1; attempt < CREASE_TRIES && coversOtherStop(best, stops); attempt++) {
-      const next = placeCrease(rng, stop, stops[stop]);
-      const nextAlpha = worstNeighborAlpha(next, stops);
-      // Keep the least covering placement, so that when every direction
-      // covers a neighbor the one returned hides the least.
-      if (nextAlpha < bestAlpha) {
-        best = next;
-        bestAlpha = nextAlpha;
-      }
-    }
-    return best;
-  });
+  return chosen.map((stop) => placeBestCrease(rng, stop, stops));
 }
 
 export interface GenerateOptions {
@@ -328,16 +335,27 @@ export function generatePalette(seed: number, options: GenerateOptions = {}): Pa
   return { stops, creases, background, seed };
 }
 
+// Seeds the re-placement of one stop's crease from the reroll's seed, so a
+// reroll is a pure function of the previous palette and the seed.
+export const CREASE_RESEED_STEP = 1_000_003;
+
 export function rerollPalette(previous: Palette, seed: number): Palette {
   const fresh = generatePalette(seed, { count: previous.stops.length });
   const locked = new Set(previous.stops.flatMap((stop, i) => (stop.locked ? [i] : [])));
-  // A locked stop keeps its creases; fresh creases never land on it, and the
+  const stops = fresh.stops.map((stop, i) => (previous.stops[i].locked ? previous.stops[i] : stop));
+  // A locked stop keeps a crease; fresh creases never land on it, and the
   // total stays capped by dropping fresh ones first.
   const kept = previous.creases.filter((c) => locked.has(c.stop));
   const added = fresh.creases.filter((c) => !locked.has(c.stop)).slice(0, Math.max(0, CREASE_MAX - kept.length));
-  return {
-    ...fresh,
-    stops: fresh.stops.map((stop, i) => (previous.stops[i].locked ? previous.stops[i] : stop)),
-    creases: [...kept, ...added],
-  };
+  // Both were placed against positions that are gone now: a kept crease
+  // against the previous palette, a fresh one against the fresh position
+  // of a locked slot. One that would sit on a stop of the merged palette
+  // is re-placed from its own stop under the usual rule.
+  const positions = stops.map(({ x, y }) => ({ x, y }));
+  const creases = [...kept, ...added].map((c) =>
+    coversOtherStop(c, positions)
+      ? placeBestCrease(createRng(seed + (c.stop + 1) * CREASE_RESEED_STEP), c.stop, positions, CREASE_REPLACE_TRIES)
+      : c,
+  );
+  return { ...fresh, stops, creases };
 }

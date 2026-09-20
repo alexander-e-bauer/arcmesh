@@ -31,6 +31,9 @@ import {
   pickStopCount,
   rerollPalette,
   SPOT_PROBABILITY,
+  WARP_FREQUENCY,
+  WARP_SEED_MAX,
+  WARP_STRENGTH,
   WASH_STRENGTH,
 } from './harmony';
 import { createRng } from './rng';
@@ -419,6 +422,47 @@ describe('generatePalette', () => {
       expect(generatePalette(seed).stops.map(({ x, y }) => ({ x, y }))).toEqual(positions);
     }
   });
+
+  it('warps every palette, with an integer seed and the frequency and strength in range', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      const { warp } = generatePalette(seed);
+      expect(warp).not.toBeNull();
+      expect(Number.isInteger(warp!.seed)).toBe(true);
+      expect(warp!.seed).toBeGreaterThanOrEqual(1);
+      expect(warp!.seed).toBeLessThanOrEqual(WARP_SEED_MAX);
+      expect(warp!.frequency).toBeGreaterThanOrEqual(WARP_FREQUENCY[0]);
+      expect(warp!.frequency).toBeLessThanOrEqual(WARP_FREQUENCY[1]);
+      expect(warp!.strength).toBeGreaterThanOrEqual(WARP_STRENGTH[0]);
+      expect(warp!.strength).toBeLessThanOrEqual(WARP_STRENGTH[1]);
+    }
+  });
+
+  it('draws the warp after the spot, so the light and the spot are unchanged by it', () => {
+    // Rebuild every draw up to the spot in the documented order; the
+    // light must come from those draws and the warp seed from the next.
+    for (let seed = 1; seed <= 300; seed++) {
+      const rng = createRng(seed);
+      const count = pickStopCount(rng);
+      const { hues, accentIndex } = pickHues(rng, count);
+      const w = paletteBandWeight(hues, accentIndex);
+      pickLightness(rng, count, w);
+      rng.range(0.7, 1.0);
+      const positions = pickPositions(rng, count);
+      pickCreases(rng, positions);
+      rng.chance(0.5);
+      rng.range(DEEP_DROP[0], DEEP_DROP[1]);
+      rng.chance(DEEP_PROBABILITY);
+      const phi = rng.range(0, 2 * Math.PI);
+      const strength = rng.range(WASH_STRENGTH[0], WASH_STRENGTH[1]);
+      rng.chance(SPOT_PROBABILITY);
+      const warpSeed = rng.int(1, WARP_SEED_MAX);
+      const palette = generatePalette(seed);
+      expect(palette.light!.strength).toBe(strength);
+      const reach = exitDistance(0.5, 0.5, Math.cos(phi), Math.sin(phi));
+      expect(palette.light!.x).toBeCloseTo(0.5 + reach * Math.cos(phi), 12);
+      expect(palette.warp!.seed).toBe(warpSeed);
+    }
+  });
 });
 
 describe('rerollPalette', () => {
@@ -468,6 +512,18 @@ describe('rerollPalette', () => {
     const first = generatePalette(8);
     const next = rerollPalette(first, 9);
     expect(next.light).toEqual(generatePalette(9, { count: first.stops.length }).light);
+  });
+
+  it('takes the warp from the fresh palette on reroll', () => {
+    const first = generatePalette(8);
+    const next = rerollPalette(first, 9);
+    expect(next.warp).toEqual(generatePalette(9, { count: first.stops.length }).warp);
+    expect(next.warp).not.toEqual(first.warp);
+  });
+
+  it('leaves the warp alone when a stop is dragged', () => {
+    const palette = generatePalette(8);
+    expect(moveStop(palette, 0, 0.4, 0.6).warp).toBe(palette.warp);
   });
 
   it('keeps the stop count of the previous palette', () => {

@@ -88,7 +88,7 @@ export function decodePalette(encoded: string): Palette | null {
     }
   }
 
-  return { seed, background, stops, creases, light, spot };
+  return { seed, background, stops, creases, light, spot, warp: null };
 }
 
 function parseLight(parts: string[]): Light | null {

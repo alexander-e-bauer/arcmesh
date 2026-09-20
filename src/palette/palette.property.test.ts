@@ -10,6 +10,9 @@ import {
   LIGHTNESS_MIN,
   pickHues,
   pickStopCount,
+  WARP_FREQUENCY,
+  WARP_SEED_MAX,
+  WARP_STRENGTH,
   type Palette,
 } from './harmony';
 import { inGamut, oklchToSrgb } from './oklch';
@@ -94,6 +97,19 @@ describe('a thousand generated palettes', () => {
         expect(palette.spot).toBeGreaterThanOrEqual(0);
         expect(palette.spot).toBeLessThan(palette.stops.length);
       }
+    }
+  });
+
+  it('carry a warp with an integer seed and the frequency and strength in range', () => {
+    for (const palette of palettes) {
+      expect(palette.warp).not.toBeNull();
+      expect(Number.isInteger(palette.warp!.seed)).toBe(true);
+      expect(palette.warp!.seed).toBeGreaterThanOrEqual(1);
+      expect(palette.warp!.seed).toBeLessThanOrEqual(WARP_SEED_MAX);
+      expect(palette.warp!.frequency).toBeGreaterThanOrEqual(WARP_FREQUENCY[0]);
+      expect(palette.warp!.frequency).toBeLessThanOrEqual(WARP_FREQUENCY[1]);
+      expect(palette.warp!.strength).toBeGreaterThanOrEqual(WARP_STRENGTH[0]);
+      expect(palette.warp!.strength).toBeLessThanOrEqual(WARP_STRENGTH[1]);
     }
   });
 

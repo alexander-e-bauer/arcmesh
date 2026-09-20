@@ -103,6 +103,7 @@ describe('palette codec', () => {
       ],
       light: null,
       spot: null,
+      warp: null,
     };
     const encoded = encodePalette(palette);
     expect(decodeText(encoded).startsWith('3|9|')).toBe(true);

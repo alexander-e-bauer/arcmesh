@@ -17,6 +17,7 @@ const palette: Palette = {
   creases: [{ stop: 1, cx: 1.3, cy: 0.2, r: 0.9, t0: 0.4, t1: 0.6 }],
   light: null,
   spot: null,
+  warp: null,
 };
 
 describe('farthestCorner', () => {

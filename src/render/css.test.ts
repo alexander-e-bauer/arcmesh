@@ -15,6 +15,7 @@ const palette: Palette = {
   creases: [],
   light: null,
   spot: null,
+  warp: null,
 };
 
 describe('color formatting', () => {

@@ -27,6 +27,16 @@ export interface Light {
   strength: number;
 }
 
+// How the finished mesh is warped: the noise seed, how many noise periods
+// span the canvas width, and how far a pixel is pushed at most, as a
+// fraction of the width. One SVG filter over the whole layer list, in
+// both renderers.
+export interface Warp {
+  seed: number;
+  frequency: number;
+  strength: number;
+}
+
 export interface Palette {
   stops: Stop[];
   creases: Crease[];
@@ -36,6 +46,8 @@ export interface Palette {
   light: Light | null;
   // The stop that carries a spot, the brightest one, or null.
   spot: number | null;
+  // Null only for a link written before round five.
+  warp: Warp | null;
 }
 
 export interface Point {
@@ -107,6 +119,14 @@ export const SHADE_MAX = 0.45;
 export const SPOT_PROBABILITY = 0.3;
 export const SPOT_RADIUS = 0.08;
 export const SPOT_LIFT = 0.06;
+
+// Every mesh is warped; the strength runs from barely there to fluid. On
+// the sheets 0.06 only moves the crease edges, 0.10 makes the folds wave
+// and the blobs wobble, 0.14 reads as poured; past 3.5 noise periods
+// across the width it turns lumpy.
+export const WARP_SEED_MAX = 9999;
+export const WARP_FREQUENCY: readonly [number, number] = [1.5, 3.5];
+export const WARP_STRENGTH: readonly [number, number] = [0.06, 0.14];
 
 export const CREASE_MAX = 2;
 // A crease is anchored to its stop. Its center sits along a random direction
@@ -369,6 +389,13 @@ export function generatePalette(seed: number, options: GenerateOptions = {}): Pa
   };
   const spot = rng.chance(SPOT_PROBABILITY) ? lightness.indexOf(Math.max(...lightness)) : null;
 
+  // Drawn last of all, after the spot, so nothing before it moves.
+  const warp: Warp = {
+    seed: rng.int(1, WARP_SEED_MAX),
+    frequency: rng.range(WARP_FREQUENCY[0], WARP_FREQUENCY[1]),
+    strength: rng.range(WARP_STRENGTH[0], WARP_STRENGTH[1]),
+  };
+
   const stops: Stop[] = hues.map((h, i) => {
     const l = lightness[i];
     let c = chromaCeiling(l) * chromaScale;
@@ -377,7 +404,7 @@ export function generatePalette(seed: number, options: GenerateOptions = {}): Pa
     return { ...color, x: positions[i].x, y: positions[i].y, locked: false };
   });
 
-  return { stops, creases, background, seed, light, spot };
+  return { stops, creases, background, seed, light, spot, warp };
 }
 
 // A dragged stop takes its crease along by the same delta, so the hard

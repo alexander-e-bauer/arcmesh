@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { decodePalette, encodePalette } from '../palette/codec';
 import { generatePalette, type Palette } from '../palette/harmony';
-import { BLOB_STRETCH, blobLayer, blobStretch, creaseLayer, CREASE_EDGE, FALLOFF, farthestCorner, paletteToLayers } from './layers';
+import { BLOB_STRETCH, blobLayer, blobStretch, creaseLayer, CREASE_FEATHER, FALLOFF, farthestCorner, paletteToLayers } from './layers';
 
 const palette: Palette = {
   seed: 1,
@@ -107,9 +107,16 @@ describe('creaseLayer', () => {
       { offset: 0, color, alpha: 0 },
       { offset: 0.4, color, alpha: 0 },
       { offset: 0.6, color, alpha: 1 },
-      { offset: CREASE_EDGE, color, alpha: 1 },
+      { offset: 1 - CREASE_FEATHER / 0.9, color, alpha: 1 },
       { offset: 1, color, alpha: 0 },
     ]);
+  });
+
+  it('keeps the feather the same width on a fold as on a crease', () => {
+    const fold = creaseLayer({ stop: 1, cx: 8, cy: 0.2, r: 9, t0: 0.9, t1: 0.95 }, palette.stops[1]);
+    const near = creaseLayer(palette.creases[0], palette.stops[1]);
+    expect((1 - fold.stops[3].offset) * 9).toBeCloseTo(CREASE_FEATHER, 12);
+    expect((1 - near.stops[3].offset) * 0.9).toBeCloseTo(CREASE_FEATHER, 12);
   });
 });
 

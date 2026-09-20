@@ -3,7 +3,7 @@ import type { Palette } from '../palette/harmony';
 import { oklchToHex } from '../palette/oklch';
 import { drawPalette, pngFileName, rgbaString, type Context2D } from './canvas';
 import { GRAIN_BLEND } from './grain';
-import { blobLayer, FALLOFF } from './layers';
+import { blobLayer, CREASE_FEATHER, FALLOFF } from './layers';
 
 const palette: Palette = {
   seed: 7,
@@ -77,7 +77,7 @@ describe('drawPalette', () => {
     expect(gradients).toHaveLength(5);
 
     const first = gradients[0].stops;
-    expect(first.map(([offset]) => offset)).toEqual([0, 0.4, 0.6, 0.992, 1]);
+    expect(first.map(([offset]) => offset)).toEqual([0, 0.4, 0.6, 1 - CREASE_FEATHER / 0.9, 1]);
     expect(first.map(([, color]) => color.endsWith(', 1)'))).toEqual([false, false, true, true, false]);
 
     const second = gradients[1].stops;

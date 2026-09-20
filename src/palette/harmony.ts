@@ -90,6 +90,12 @@ export const CREASE_MAX = 2;
 // the ellipse crosses the canvas.
 export const CREASE_BEYOND: readonly [number, number] = [0.15, 0.5];
 export const CREASE_MIN_DISTANCE = 0.5;
+// A fold is a crease whose center sits this far out instead: at 4 to 8
+// canvas units the arc bows under 0.03 across the canvas and reads as a
+// straight fold with a hint of life. One draw carries the kind and the
+// distance, so the draw count is unchanged.
+export const FOLD_PROBABILITY = 0.4;
+export const FOLD_BEYOND: readonly [number, number] = [4, 8];
 // How far the hard edge bulges past the stop, away from the center.
 export const CREASE_INSET: readonly [number, number] = [0.03, 0.12];
 // The opaque band runs from the edge back past the stop by this much, then
@@ -206,7 +212,11 @@ function placeCrease(rng: Rng, stop: number, at: Point): Crease {
   const theta = rng.range(0, 2 * Math.PI);
   const dx = Math.cos(theta);
   const dy = Math.sin(theta);
-  const beyond = rng.range(CREASE_BEYOND[0], CREASE_BEYOND[1]);
+  const u = rng.next();
+  const beyond =
+    u < FOLD_PROBABILITY
+      ? FOLD_BEYOND[0] + (u / FOLD_PROBABILITY) * (FOLD_BEYOND[1] - FOLD_BEYOND[0])
+      : CREASE_BEYOND[0] + ((u - FOLD_PROBABILITY) / (1 - FOLD_PROBABILITY)) * (CREASE_BEYOND[1] - CREASE_BEYOND[0]);
   const s = rng.range(CREASE_INSET[0], CREASE_INSET[1]);
   const band = rng.range(CREASE_BAND[0], CREASE_BAND[1]);
   const fade = rng.range(CREASE_FADE[0], CREASE_FADE[1]);

@@ -15,6 +15,8 @@ import {
   DEEP_DROP,
   DEEP_PROBABILITY,
   exitDistance,
+  FOLD_BEYOND,
+  FOLD_PROBABILITY,
   generatePalette,
   LIGHTNESS_JITTER,
   LIGHTNESS_MIN,
@@ -414,20 +416,47 @@ describe('creases', () => {
         expect(c.cx < 0 || c.cx > 1 || c.cy < 0 || c.cy > 1).toBe(true);
         expect(c.r - d).toBeGreaterThanOrEqual(CREASE_INSET[0] - 1e-9);
         expect(c.r - d).toBeLessThanOrEqual(CREASE_INSET[1] + 1e-9);
-        expect(c.cx).toBeGreaterThanOrEqual(-2);
-        expect(c.cx).toBeLessThanOrEqual(3);
-        expect(c.cy).toBeGreaterThanOrEqual(-2);
-        expect(c.cy).toBeLessThanOrEqual(3);
+        expect(c.cx).toBeGreaterThanOrEqual(-12);
+        expect(c.cx).toBeLessThanOrEqual(13);
+        expect(c.cy).toBeGreaterThanOrEqual(-12);
+        expect(c.cy).toBeLessThanOrEqual(13);
         expect(c.r).toBeGreaterThanOrEqual(0.2);
-        expect(c.r).toBeLessThanOrEqual(2.5);
+        expect(c.r).toBeLessThanOrEqual(10);
         expect(c.t0).toBeGreaterThanOrEqual(0);
         expect(c.t0).toBeLessThan(c.t1);
-        expect(c.t1).toBeLessThanOrEqual(0.99);
+        expect(c.t1).toBeLessThanOrEqual(0.999);
         // The opaque band starts past the stop, on the center side.
         expect(c.t1 * c.r).toBeLessThanOrEqual(d + 1e-9);
       }
     }
     expect(seen).toBeGreaterThan(200);
+  });
+
+  it('make about four in ten creases straight folds, far enough out to bow under 0.035 over a unit chord', () => {
+    const rng = createRng(34);
+    let folds = 0;
+    let total = 0;
+    for (let i = 0; i < 1000; i++) {
+      const positions = pickPositions(rng, i % 2 === 0 ? 4 : 5);
+      for (const c of pickCreases(rng, positions)) {
+        total++;
+        const { x, y } = positions[c.stop];
+        const d = Math.hypot(c.cx - x, c.cy - y);
+        const exit = exitDistance(x, y, (c.cx - x) / d, (c.cy - y) / d);
+        const beyond = d - Math.max(CREASE_MIN_DISTANCE, exit);
+        if (beyond >= FOLD_BEYOND[0] - 1e-9) {
+          folds++;
+          expect(beyond).toBeLessThanOrEqual(FOLD_BEYOND[1] + 1e-9);
+          expect(c.r - Math.sqrt(c.r * c.r - 0.25)).toBeLessThan(0.035);
+        } else {
+          expect(beyond).toBeGreaterThanOrEqual(CREASE_BEYOND[0] - 1e-9);
+          expect(beyond).toBeLessThanOrEqual(CREASE_BEYOND[1] + 1e-9);
+        }
+      }
+    }
+    expect(total).toBeGreaterThan(500);
+    expect(folds / total).toBeGreaterThan(FOLD_PROBABILITY - 0.06);
+    expect(folds / total).toBeLessThan(FOLD_PROBABILITY + 0.06);
   });
 
   it('measures the distance to the canvas edge along a direction', () => {

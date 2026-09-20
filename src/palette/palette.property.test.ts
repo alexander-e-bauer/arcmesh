@@ -92,7 +92,7 @@ describe('a thousand generated palettes', () => {
         expect(c.stop).toBeGreaterThanOrEqual(0);
         expect(c.stop).toBeLessThan(palette.stops.length);
         expect(c.t0).toBeLessThan(c.t1);
-        expect(c.t1).toBeLessThanOrEqual(0.99);
+        expect(c.t1).toBeLessThanOrEqual(0.999);
       }
     }
   });

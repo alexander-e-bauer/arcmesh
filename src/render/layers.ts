@@ -10,9 +10,10 @@ export const FALLOFF = [65, 55, 75, 60, 70] as const;
 // on each axis, so four blobs are not four copies of the canvas's shape.
 export const BLOB_STRETCH: readonly [number, number] = [0.8, 1.25];
 
-// A crease's hard edge sits just inside the ellipse so the cut is
-// antialiased rather than jagged.
-export const CREASE_EDGE = 0.992;
+// A crease's hard edge sits this far inside the ellipse, in canvas units,
+// so the cut is antialiased rather than jagged. Absolute, not a fraction
+// of the radius: a fold's ellipse is ten times a crease's.
+export const CREASE_FEATHER = 0.006;
 
 // Alpha in [0, 1]. Within a layer the color is constant and only alpha
 // varies, so the interpolation space cannot show in either renderer.
@@ -102,7 +103,7 @@ export function creaseLayer(crease: Crease, stop: Stop): Layer {
       { offset: 0, color, alpha: 0 },
       { offset: crease.t0, color, alpha: 0 },
       { offset: crease.t1, color, alpha: 1 },
-      { offset: CREASE_EDGE, color, alpha: 1 },
+      { offset: 1 - CREASE_FEATHER / crease.r, color, alpha: 1 },
       { offset: 1, color, alpha: 0 },
     ],
   };

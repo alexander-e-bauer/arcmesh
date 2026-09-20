@@ -101,7 +101,7 @@ describe('paletteToCss', () => {
       creases: [{ stop: 1, cx: 1.3, cy: 0.2, r: 0.9, t0: 0.4, t1: 0.6 }],
     });
     const hex = formatHex(palette.stops[1]);
-    const expected = `radial-gradient(90.0% 90.0% at 130.0% 20.0%, ${hex}00 0%, ${hex}00 40%, ${hex} 60%, ${hex} 99.2%, ${hex}00 100%)`;
+    const expected = `radial-gradient(90.0% 90.0% at 130.0% 20.0%, ${hex}00 0%, ${hex}00 40%, ${hex} 60%, ${hex} 99.3%, ${hex}00 100%)`;
     expect(withCrease).toContain(expected);
     const firstBlock = withCrease.slice(withCrease.indexOf('background-image:'), withCrease.indexOf('background-image:', withCrease.indexOf('background-image:') + 1));
     expect(firstBlock.indexOf(expected)).toBeGreaterThan(firstBlock.indexOf('at 70.0% 75.0%'));

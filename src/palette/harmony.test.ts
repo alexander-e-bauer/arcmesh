@@ -30,6 +30,8 @@ import {
   pickPositions,
   pickStopCount,
   rerollPalette,
+  SPOT_PROBABILITY,
+  WASH_STRENGTH,
 } from './harmony';
 import { createRng } from './rng';
 import { clampChroma } from './oklch';
@@ -322,6 +324,62 @@ describe('generatePalette', () => {
     expect(checked).toBeGreaterThan(100);
   });
 
+  it('lights every palette from a point on the canvas edge, at a strength in range', () => {
+    for (let seed = 1; seed <= 500; seed++) {
+      const { light } = generatePalette(seed);
+      expect(light).not.toBeNull();
+      const onEdge = [light!.x, light!.y].some((v) => Math.abs(v) < 1e-9 || Math.abs(v - 1) < 1e-9);
+      expect(onEdge).toBe(true);
+      expect(light!.x).toBeGreaterThanOrEqual(-1e-9);
+      expect(light!.x).toBeLessThanOrEqual(1 + 1e-9);
+      expect(light!.y).toBeGreaterThanOrEqual(-1e-9);
+      expect(light!.y).toBeLessThanOrEqual(1 + 1e-9);
+      expect(light!.strength).toBeGreaterThanOrEqual(WASH_STRENGTH[0]);
+      expect(light!.strength).toBeLessThanOrEqual(WASH_STRENGTH[1]);
+    }
+  });
+
+  it('puts a spot on about three in ten palettes, always on the brightest stop', () => {
+    let spots = 0;
+    for (let seed = 1; seed <= 1000; seed++) {
+      const palette = generatePalette(seed);
+      if (palette.spot === null) continue;
+      spots++;
+      const brightest = Math.max(...palette.stops.map((stop) => stop.l));
+      expect(palette.stops[palette.spot].l).toBe(brightest);
+    }
+    expect(spots / 1000).toBeGreaterThan(SPOT_PROBABILITY - 0.05);
+    expect(spots / 1000).toBeLessThan(SPOT_PROBABILITY + 0.05);
+  });
+
+  it('draws the light and the spot after the deep drop, so the drop is unchanged by them', () => {
+    // Rebuild every draw up to the drop in the documented order and check
+    // the drop's own effect matches: a seed's darkest slot is the same as
+    // it was before the light and the spot were drawn.
+    let deep = 0;
+    for (let seed = 1; seed <= 300; seed++) {
+      const rng = createRng(seed);
+      const count = pickStopCount(rng);
+      const { hues, accentIndex } = pickHues(rng, count);
+      const w = paletteBandWeight(hues, accentIndex);
+      pickLightness(rng, count, w);
+      rng.range(0.7, 1.0);
+      const positions = pickPositions(rng, count);
+      pickCreases(rng, positions);
+      rng.chance(0.5);
+      const drop = rng.range(DEEP_DROP[0], DEEP_DROP[1]);
+      const dropped = rng.chance(DEEP_PROBABILITY);
+      const palette = generatePalette(seed);
+      const darkest = Math.min(...palette.stops.map((stop) => stop.l));
+      if (dropped && w === 0) {
+        deep++;
+        expect(darkest).toBeLessThan(LIGHTNESS_MIN - LIGHTNESS_JITTER + 1e-9);
+        expect(darkest).toBeGreaterThanOrEqual(LIGHTNESS_MIN - LIGHTNESS_JITTER - drop - 1e-9);
+      }
+    }
+    expect(deep).toBeGreaterThan(30);
+  });
+
   it('drops the darkest slot below the ramp on some palettes outside the yellow band, never inside it', () => {
     // The ramp alone never goes below this; only the deep drop can.
     const rampFloor = LIGHTNESS_MIN - LIGHTNESS_JITTER - 1e-9;
@@ -375,6 +433,41 @@ describe('rerollPalette', () => {
     expect(next.stops).toHaveLength(first.stops.length);
     expect(next.stops[1]).toEqual(locked.stops[1]);
     expect(next.stops[0]).not.toEqual(first.stops[0]);
+  });
+
+  it('keeps a spot on a locked stop, otherwise takes the fresh one unless it lands on a locked stop', () => {
+    let kept = 0;
+    let fresh = 0;
+    let dropped = 0;
+    for (let seed = 1; seed <= 300; seed++) {
+      const first = generatePalette(seed);
+      if (first.spot === null) continue;
+      const locked = { ...first, stops: first.stops.map((stop, i) => (i === first.spot ? { ...stop, locked: true } : stop)) };
+      const next = rerollPalette(locked, seed + 1000);
+      expect(next.spot).toBe(first.spot);
+      kept++;
+      // Lock a different stop instead: the previous spot is not kept.
+      const other = (first.spot + 1) % first.stops.length;
+      const lockedOther = { ...first, stops: first.stops.map((stop, i) => (i === other ? { ...stop, locked: true } : stop)) };
+      const generated = generatePalette(seed + 1000, { count: first.stops.length });
+      const rerolled = rerollPalette(lockedOther, seed + 1000);
+      if (generated.spot === null || generated.spot === other) {
+        expect(rerolled.spot).toBeNull();
+        dropped++;
+      } else {
+        expect(rerolled.spot).toBe(generated.spot);
+        fresh++;
+      }
+    }
+    expect(kept).toBeGreaterThan(50);
+    expect(fresh).toBeGreaterThan(10);
+    expect(dropped).toBeGreaterThan(10);
+  });
+
+  it('takes the light from the fresh palette on reroll', () => {
+    const first = generatePalette(8);
+    const next = rerollPalette(first, 9);
+    expect(next.light).toEqual(generatePalette(9, { count: first.stops.length }).light);
   });
 
   it('keeps the stop count of the previous palette', () => {

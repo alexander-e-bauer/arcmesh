@@ -85,6 +85,18 @@ describe('a thousand generated palettes', () => {
     }
   });
 
+  it('are lit from the canvas edge and carry a valid spot when they carry one', () => {
+    for (const palette of palettes) {
+      expect(palette.light).not.toBeNull();
+      expect([palette.light!.x, palette.light!.y].some((v) => v < 1e-9 || v > 1 - 1e-9)).toBe(true);
+      if (palette.spot !== null) {
+        expect(Number.isInteger(palette.spot)).toBe(true);
+        expect(palette.spot).toBeGreaterThanOrEqual(0);
+        expect(palette.spot).toBeLessThan(palette.stops.length);
+      }
+    }
+  });
+
   it('carry at most two creases, each on a real stop', () => {
     for (const palette of palettes) {
       expect(palette.creases.length).toBeLessThanOrEqual(CREASE_MAX);

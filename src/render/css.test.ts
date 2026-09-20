@@ -13,6 +13,8 @@ const palette: Palette = {
     { l: 0.6, c: 0.1, h: 260, x: 0.7, y: 0.75, locked: false },
   ],
   creases: [],
+  light: null,
+  spot: null,
 };
 
 describe('color formatting', () => {

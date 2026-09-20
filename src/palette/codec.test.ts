@@ -101,13 +101,62 @@ describe('palette codec', () => {
         { stop: 1, cx: 1.3, cy: 0.2, r: 0.9, t0: 0.4, t1: 0.6 },
         { stop: 3, cx: -0.45, cy: 1.1, r: 0.62, t0: 0.55, t1: 0.8 },
       ],
+      light: null,
+      spot: null,
     };
     const encoded = encodePalette(palette);
-    expect(decodeText(encoded).startsWith('2|9|')).toBe(true);
+    expect(decodeText(encoded).startsWith('3|9|')).toBe(true);
     const decoded = decodePalette(encoded);
     expect(decoded).not.toBeNull();
     expect(decoded!.creases).toEqual(palette.creases);
     expect(encodePalette(decoded!)).toBe(encoded);
+  });
+
+  it('round-trips the light and the spot and writes version 3', () => {
+    const palette = generatePalette(5);
+    expect(palette.light).not.toBeNull();
+    const encoded = encodePalette(palette);
+    const text = decodeText(encoded);
+    expect(text.split('|')).toHaveLength(7);
+    const decoded = decodePalette(encoded)!;
+    expect(decoded.light!.x).toBeCloseTo(palette.light!.x, 3);
+    expect(decoded.light!.y).toBeCloseTo(palette.light!.y, 3);
+    expect(decoded.light!.strength).toBeCloseTo(palette.light!.strength, 3);
+    expect(decoded.spot).toBe(palette.spot);
+    expect(encodePalette(decoded)).toBe(encoded);
+  });
+
+  it('writes an empty light field for a palette without one', () => {
+    const palette = { ...generatePalette(5), light: null, spot: null };
+    const text = decodeText(encodePalette(palette));
+    expect(text.split('|').slice(5)).toEqual(['', '']);
+    expect(decodePalette(encodePalette(palette))!.light).toBeNull();
+  });
+
+  it('decodes a version 2 hash with no light and no spot', () => {
+    const v2 = btoa('2|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0|0,1.3,0.2,0.9,0.4,0.6');
+    const decoded = decodePalette(v2)!;
+    expect(decoded.creases).toHaveLength(1);
+    expect(decoded.light).toBeNull();
+    expect(decoded.spot).toBeNull();
+  });
+
+  it.each([
+    ['version 3 with six fields', '3|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||0.5,0,0.1'],
+    ['light off the canvas', '3|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||1.5,0,0.1|'],
+    ['light too strong', '3|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||0.5,0,0.6|'],
+    ['light with two numbers', '3|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||0.5,0|'],
+    ['spot on a missing stop', '3|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||0.5,0,0.1|4'],
+    ['fractional spot', '3|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||0.5,0,0.1|1.5'],
+  ])('rejects %s', (_name, text) => {
+    expect(decodePalette(btoa(text))).toBeNull();
+  });
+
+  it('accepts a version 3 hash with an empty light and a spot', () => {
+    const text = '3|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0|||2';
+    const decoded = decodePalette(btoa(text))!;
+    expect(decoded.light).toBeNull();
+    expect(decoded.spot).toBe(2);
   });
 
   it('accepts a fold dragged a full canvas past where generation puts it', () => {

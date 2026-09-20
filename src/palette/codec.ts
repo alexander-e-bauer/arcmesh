@@ -1,12 +1,14 @@
-import { CREASE_MAX, type Crease, type Palette, type Stop } from './harmony';
+import { CREASE_MAX, type Crease, type Light, type Palette, type Stop } from './harmony';
 import type { Oklch } from './oklch';
 
 // The URL hash carries the whole palette, not just the seed: a locked stop
 // that survived a reroll came from an older seed, so the seed alone cannot
 // rebuild it. Text form, before base64url:
-//   2|<seed>|<bg l>,<bg c>,<bg h>|<h>,<c>,<l>,<x>,<y>,<locked>;...|<stop>,<cx>,<cy>,<r>,<t0>,<t1>;...
-// Version 1 had no crease field and still decodes.
-const VERSION = '2';
+//   3|<seed>|<bg l>,<bg c>,<bg h>|<h>,<c>,<l>,<x>,<y>,<locked>;...|<stop>,<cx>,<cy>,<r>,<t0>,<t1>;...|<lx>,<ly>,<strength>|<spot>
+// Version 1 had no crease field; version 2 had no light and no spot. Both
+// still decode, with those parts empty.
+const VERSION = '3';
+const FIELDS: Record<string, number> = { '1': 4, '2': 5, '3': 7 };
 const MIN_STOPS = 4;
 const MAX_STOPS = 5;
 
@@ -31,7 +33,11 @@ export function encodePalette(palette: Palette): string {
   const creases = palette.creases
     .map((c) => [String(c.stop), c.cx.toFixed(3), c.cy.toFixed(3), c.r.toFixed(3), c.t0.toFixed(3), c.t1.toFixed(3)].join(','))
     .join(';');
-  return toBase64Url([VERSION, String(palette.seed), background, stops, creases].join('|'));
+  const light = palette.light
+    ? [palette.light.x.toFixed(3), palette.light.y.toFixed(3), palette.light.strength.toFixed(3)].join(',')
+    : '';
+  const spot = palette.spot === null ? '' : String(palette.spot);
+  return toBase64Url([VERSION, String(palette.seed), background, stops, creases, light, spot].join('|'));
 }
 
 export function decodePalette(encoded: string): Palette | null {
@@ -40,7 +46,7 @@ export function decodePalette(encoded: string): Palette | null {
 
   const parts = text.split('|');
   const version = parts[0];
-  if (!((version === '1' && parts.length === 4) || (version === '2' && parts.length === 5))) return null;
+  if (FIELDS[version] !== parts.length) return null;
 
   const seed = Number(parts[1]);
   if (parts[1] === '' || !Number.isInteger(seed) || seed < 0) return null;
@@ -58,7 +64,7 @@ export function decodePalette(encoded: string): Palette | null {
   }
 
   const creases: Crease[] = [];
-  if (version === '2' && parts[4] !== '') {
+  if (version !== '1' && parts[4] !== '') {
     const creaseTexts = parts[4].split(';');
     if (creaseTexts.length > CREASE_MAX) return null;
     for (const creaseText of creaseTexts) {
@@ -69,7 +75,28 @@ export function decodePalette(encoded: string): Palette | null {
   }
   if (new Set(creases.map((c) => c.stop)).size !== creases.length) return null;
 
-  return { seed, background, stops, creases };
+  let light: Light | null = null;
+  let spot: number | null = null;
+  if (version === '3') {
+    if (parts[5] !== '') {
+      light = parseLight(parts[5].split(','));
+      if (light === null) return null;
+    }
+    if (parts[6] !== '') {
+      spot = Number(parts[6]);
+      if (!Number.isInteger(spot) || spot < 0 || spot >= stops.length) return null;
+    }
+  }
+
+  return { seed, background, stops, creases, light, spot };
+}
+
+function parseLight(parts: string[]): Light | null {
+  const numbers = parseNumbers(parts, 3);
+  if (numbers === null) return null;
+  const [x, y, strength] = numbers;
+  if (!within(x, 0, 1) || !within(y, 0, 1) || !within(strength, 0, 0.5)) return null;
+  return { x, y, strength };
 }
 
 function parseNumbers(parts: string[], expected: number): number[] | null {

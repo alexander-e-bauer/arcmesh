@@ -15,6 +15,8 @@ const palette: Palette = {
     { l: 0.6, c: 0.1, h: 260, x: 0.7, y: 0.75, locked: false },
   ],
   creases: [{ stop: 1, cx: 1.3, cy: 0.2, r: 0.9, t0: 0.4, t1: 0.6 }],
+  light: null,
+  spot: null,
 };
 
 interface Op {

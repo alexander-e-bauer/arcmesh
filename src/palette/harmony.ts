@@ -20,11 +20,22 @@ export interface Crease {
   t1: number;
 }
 
+// Where the mesh is lit from: a point on the canvas edge and how strongly.
+export interface Light {
+  x: number;
+  y: number;
+  strength: number;
+}
+
 export interface Palette {
   stops: Stop[];
   creases: Crease[];
   background: Oklch;
   seed: number;
+  // Null only for a link written before round four.
+  light: Light | null;
+  // The stop that carries a spot, the brightest one, or null.
+  spot: number | null;
 }
 
 export interface Point {
@@ -83,6 +94,19 @@ export const BACKGROUND_DARK = 0.16;
 export const BACKGROUND_LIGHT = 0.94;
 
 export const POSITION_JITTER = 0.15;
+
+// Every mesh is lit from one direction: a white wash from a point on the
+// edge and a shade of the background color from the opposite point.
+export const WASH_STRENGTH: readonly [number, number] = [0.08, 0.2];
+export const WASH_REACH = 0.9;
+export const SHADE_SCALE = 1.5;
+export const SHADE_MAX = 0.45;
+
+// Some palettes carry a spot: a small blob at the brightest stop, lifted a
+// little, a point of light.
+export const SPOT_PROBABILITY = 0.3;
+export const SPOT_RADIUS = 0.08;
+export const SPOT_LIFT = 0.06;
 
 export const CREASE_MAX = 2;
 // A crease is anchored to its stop. Its center sits along a random direction
@@ -334,6 +358,17 @@ export function generatePalette(seed: number, options: GenerateOptions = {}): Pa
     lightness[darkest] -= drop * (1 - w);
   }
 
+  // The light sits where a ray from the canvas center at a random angle
+  // leaves the canvas.
+  const phi = rng.range(0, 2 * Math.PI);
+  const reach = exitDistance(0.5, 0.5, Math.cos(phi), Math.sin(phi));
+  const light: Light = {
+    x: 0.5 + reach * Math.cos(phi),
+    y: 0.5 + reach * Math.sin(phi),
+    strength: rng.range(WASH_STRENGTH[0], WASH_STRENGTH[1]),
+  };
+  const spot = rng.chance(SPOT_PROBABILITY) ? lightness.indexOf(Math.max(...lightness)) : null;
+
   const stops: Stop[] = hues.map((h, i) => {
     const l = lightness[i];
     let c = chromaCeiling(l) * chromaScale;
@@ -342,7 +377,7 @@ export function generatePalette(seed: number, options: GenerateOptions = {}): Pa
     return { ...color, x: positions[i].x, y: positions[i].y, locked: false };
   });
 
-  return { stops, creases, background, seed };
+  return { stops, creases, background, seed, light, spot };
 }
 
 // A dragged stop takes its crease along by the same delta, so the hard
@@ -380,5 +415,13 @@ export function rerollPalette(previous: Palette, seed: number): Palette {
       ? placeBestCrease(createRng(seed + (c.stop + 1) * CREASE_RESEED_STEP), c.stop, positions, CREASE_REPLACE_TRIES)
       : c,
   );
-  return { ...fresh, stops, creases };
+  // A spot stays with a locked stop; otherwise the fresh one, unless it
+  // landed on a locked stop, whose color it was not drawn for.
+  const spot =
+    previous.spot !== null && locked.has(previous.spot)
+      ? previous.spot
+      : fresh.spot !== null && !locked.has(fresh.spot)
+        ? fresh.spot
+        : null;
+  return { ...fresh, stops, creases, spot };
 }

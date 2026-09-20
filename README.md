@@ -20,7 +20,7 @@ The preview is a stack of CSS radial-gradients applied through a style element, 
 
 ## Use
 
-Space or the Randomize button rerolls every unlocked stop, creases included. Click a swatch to lock it, and its crease stays with it. Drag a blob to move it. Copy CSS copies the declarations. Download PNG renders the same layers to a canvas at a preset or custom size, up to 8192 pixels a side. The URL hash holds the whole palette, so a link reproduces it.
+Space or the Randomize button rerolls every unlocked stop, creases included. Click a swatch to lock it, and it keeps a crease through rerolls. Drag a blob to move it, crease and all. Copy CSS copies the declarations. Download PNG renders the same layers to a canvas at a preset or custom size, up to 8192 pixels a side. The URL hash holds the whole palette, so a link reproduces it.
 
 ## Run
 

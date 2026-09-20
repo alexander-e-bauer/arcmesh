@@ -5,16 +5,21 @@ import { paletteToLayers, type Layer } from './layers';
 
 export { FALLOFF } from './layers';
 
-type Paint = (color: Oklch, alpha: 0 | 1) => string;
+type Paint = (color: Oklch, alpha: number) => string;
 
-export function formatOklch(color: Oklch, alpha: 0 | 1 = 1): string {
+// Alpha 1 and 0 keep their short forms so every layer that existed before
+// fractional alpha still reads the same; a fraction gets two decimals.
+export function formatOklch(color: Oklch, alpha = 1): string {
   const base = `${color.l.toFixed(3)} ${color.c.toFixed(3)} ${color.h.toFixed(1)}`;
-  return alpha === 1 ? `oklch(${base})` : `oklch(${base} / 0)`;
+  if (alpha === 1) return `oklch(${base})`;
+  if (alpha === 0) return `oklch(${base} / 0)`;
+  return `oklch(${base} / ${alpha.toFixed(2)})`;
 }
 
-export function formatHex(color: Oklch, alpha: 0 | 1 = 1): string {
+export function formatHex(color: Oklch, alpha = 1): string {
   const hex = oklchToHex(color);
-  return alpha === 1 ? hex : `${hex}00`;
+  if (alpha === 1) return hex;
+  return `${hex}${Math.round(alpha * 255).toString(16).padStart(2, '0')}`;
 }
 
 // Whole percents stay whole ('65%'); anything else keeps one decimal ('99.2%').

@@ -16,14 +16,20 @@ const palette: Palette = {
 };
 
 describe('color formatting', () => {
-  it('emits an oklch() function with fixed precision, with an alpha 0 variant', () => {
+  it('emits an oklch() function with fixed precision, with alpha 0 and fractional variants', () => {
     expect(formatOklch({ l: 0.5, c: 0.1, h: 200 })).toBe('oklch(0.500 0.100 200.0)');
+    expect(formatOklch({ l: 0.5, c: 0.1, h: 200 }, 1)).toBe('oklch(0.500 0.100 200.0)');
     expect(formatOklch({ l: 0.5, c: 0.1, h: 200 }, 0)).toBe('oklch(0.500 0.100 200.0 / 0)');
+    expect(formatOklch({ l: 0.5, c: 0.1, h: 200 }, 0.15)).toBe('oklch(0.500 0.100 200.0 / 0.15)');
+    expect(formatOklch({ l: 0.5, c: 0.1, h: 200 }, 0.555)).toBe('oklch(0.500 0.100 200.0 / 0.56)');
   });
 
-  it('emits hex with an eight-digit alpha 0 variant', () => {
+  it('emits hex with an alpha byte for alpha 0 and fractions', () => {
     expect(formatHex({ l: 1, c: 0, h: 0 })).toBe('#ffffff');
+    expect(formatHex({ l: 1, c: 0, h: 0 }, 1)).toBe('#ffffff');
     expect(formatHex({ l: 1, c: 0, h: 0 }, 0)).toBe('#ffffff00');
+    expect(formatHex({ l: 1, c: 0, h: 0 }, 0.15)).toBe('#ffffff26');
+    expect(formatHex({ l: 1, c: 0, h: 0 }, 0.02)).toBe('#ffffff05');
   });
 });
 

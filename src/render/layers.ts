@@ -14,10 +14,12 @@ export const BLOB_STRETCH: readonly [number, number] = [0.8, 1.25];
 // antialiased rather than jagged.
 export const CREASE_EDGE = 0.992;
 
+// Alpha in [0, 1]. Within a layer the color is constant and only alpha
+// varies, so the interpolation space cannot show in either renderer.
 export interface GradientStop {
   offset: number;
   color: Oklch;
-  alpha: 0 | 1;
+  alpha: number;
 }
 
 // Radii in unit canvas space: rx in widths, ry in heights.

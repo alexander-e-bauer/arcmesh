@@ -1,4 +1,14 @@
-import type { Crease, Palette, Stop } from '../palette/harmony';
+import {
+  SHADE_MAX,
+  SHADE_SCALE,
+  SPOT_LIFT,
+  SPOT_RADIUS,
+  WASH_REACH,
+  type Crease,
+  type Light,
+  type Palette,
+  type Stop,
+} from '../palette/harmony';
 import { clampChroma, wrapHue, type Oklch } from '../palette/oklch';
 import { createRng } from '../palette/rng';
 
@@ -144,13 +154,52 @@ export function creaseLayer(crease: Crease, stop: Stop): Layer {
   };
 }
 
-// Top layer first, the order CSS lists them in. Creases paint below the
-// blobs: painted above them a crease is an opaque disc with a hard rim, and
-// below them the blobs' soft falloffs veil it, so the hard edge shows in the
-// gaps between blob cores and dissolves under them, which is how a fold in
-// the surface reads.
+// A point of light: a small blob at the stop, lifted a little, opaque at
+// the center. Sized in unit space on both axes so it follows the canvas
+// aspect like everything else.
+export function spotLayer(stop: Stop): Layer {
+  const color = clampChroma({ l: Math.min(1, stop.l + SPOT_LIFT), c: stop.c, h: stop.h });
+  return {
+    cx: stop.x,
+    cy: stop.y,
+    size: { rx: SPOT_RADIUS, ry: SPOT_RADIUS },
+    stops: [
+      { offset: 0, color, alpha: 1 },
+      { offset: 1, color, alpha: 0 },
+    ],
+  };
+}
+
+const WHITE: Oklch = { l: 1, c: 0, h: 0 };
+
+// The lighting: a white wash from the light's edge point and, from the
+// opposite edge point, a shade of the background color, which doubles as
+// the vignette. Shade first, so it paints above the wash.
+export function washLayers(light: Light, background: Oklch): [Layer, Layer] {
+  const glow = (cx: number, cy: number, color: Oklch, alpha: number): Layer => ({
+    cx,
+    cy,
+    size: farthestCorner(cx, cy),
+    stops: [
+      { offset: 0, color, alpha },
+      { offset: WASH_REACH, color, alpha: 0 },
+    ],
+  });
+  return [
+    glow(1 - light.x, 1 - light.y, background, Math.min(SHADE_MAX, light.strength * SHADE_SCALE)),
+    glow(light.x, light.y, WHITE, light.strength),
+  ];
+}
+
+// Top layer first, the order CSS lists them in: the lighting, the spot,
+// cores, blobs, creases. Creases paint below the blobs: painted above them
+// a crease is an opaque disc with a hard rim, and below them the blobs'
+// soft falloffs veil it, so the hard edge shows in the gaps between blob
+// cores and dissolves under them, which is how a fold in the surface reads.
 export function paletteToLayers(palette: Palette): Layer[] {
   return [
+    ...(palette.light ? washLayers(palette.light, palette.background) : []),
+    ...(palette.spot !== null ? [spotLayer(palette.stops[palette.spot])] : []),
     ...palette.stops.map((stop, index) => coreLayer(stop, index)),
     ...palette.stops.map((stop, index) => blobLayer(stop, index)),
     ...palette.creases.map((crease) => creaseLayer(crease, palette.stops[crease.stop])),

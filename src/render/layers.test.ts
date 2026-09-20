@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { decodePalette, encodePalette } from '../palette/codec';
 import { generatePalette, type Palette } from '../palette/harmony';
-import { BLOB_STRETCH, blobLayer, blobStretch, CORE_ALPHA, CORE_CHROMA_BOOST, CORE_HUE_SHIFT, CORE_SCALE, coreLayer, coreShift, creaseLayer, CREASE_FEATHER, FALLOFF, farthestCorner, paletteToLayers } from './layers';
+import { BLOB_STRETCH, blobLayer, blobStretch, CORE_ALPHA, CORE_CHROMA_BOOST, CORE_HUE_SHIFT, CORE_SCALE, coreLayer, coreShift, creaseLayer, CREASE_FEATHER, FALLOFF, farthestCorner, paletteToLayers, spotLayer, washLayers } from './layers';
+import { SHADE_MAX, SHADE_SCALE, SPOT_LIFT, SPOT_RADIUS, WASH_REACH } from '../palette/harmony';
 import { clampChroma, wrapHue } from '../palette/oklch';
 
 const palette: Palette = {
@@ -141,6 +142,51 @@ describe('coreLayer', () => {
   });
 });
 
+describe('spotLayer', () => {
+  it('is a small blob at the stop in its color lifted a little, opaque at the center', () => {
+    const stop = palette.stops[2];
+    const layer = spotLayer(stop);
+    const color = clampChroma({ l: stop.l + SPOT_LIFT, c: stop.c, h: stop.h });
+    expect(layer.cx).toBe(stop.x);
+    expect(layer.cy).toBe(stop.y);
+    expect(layer.size).toEqual({ rx: SPOT_RADIUS, ry: SPOT_RADIUS });
+    expect(layer.stops).toEqual([
+      { offset: 0, color, alpha: 1 },
+      { offset: 1, color, alpha: 0 },
+    ]);
+  });
+
+  it('never lifts past white', () => {
+    expect(spotLayer({ ...palette.stops[2], l: 0.98 }).stops[0].color.l).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('washLayers', () => {
+  it('is a white wash from the light and a shade of the background from the opposite edge point', () => {
+    const light = { x: 0, y: 0.3, strength: 0.12 };
+    const [shade, wash] = washLayers(light, palette.background);
+    expect(wash.cx).toBe(0);
+    expect(wash.cy).toBe(0.3);
+    expect(wash.size).toEqual(farthestCorner(0, 0.3));
+    expect(wash.stops).toEqual([
+      { offset: 0, color: { l: 1, c: 0, h: 0 }, alpha: 0.12 },
+      { offset: WASH_REACH, color: { l: 1, c: 0, h: 0 }, alpha: 0 },
+    ]);
+    expect(shade.cx).toBe(1);
+    expect(shade.cy).toBe(0.7);
+    expect(shade.size).toEqual(farthestCorner(1, 0.7));
+    expect(shade.stops).toEqual([
+      { offset: 0, color: palette.background, alpha: 0.12 * SHADE_SCALE },
+      { offset: WASH_REACH, color: palette.background, alpha: 0 },
+    ]);
+  });
+
+  it('caps the shade', () => {
+    const [shade] = washLayers({ x: 0.5, y: 1, strength: 0.4 }, palette.background);
+    expect(shade.stops[0].alpha).toBe(SHADE_MAX);
+  });
+});
+
 describe('creaseLayer', () => {
   it('is an explicit ellipse with a hard edge and an inner fade', () => {
     const layer = creaseLayer(palette.creases[0], palette.stops[1]);
@@ -166,7 +212,20 @@ describe('creaseLayer', () => {
 });
 
 describe('paletteToLayers', () => {
-  it('lists cores, then blobs, both in stop order, then creases underneath', () => {
+  it('lists the shade and the wash, the spot, cores, then blobs, then creases underneath', () => {
+    const lit = { ...palette, light: { x: 0, y: 0.3, strength: 0.12 }, spot: 2 };
+    const layers = paletteToLayers(lit);
+    expect(layers).toHaveLength(12);
+    expect(layers[0].stops[0].color).toEqual(palette.background);
+    expect(layers[1].stops[0].color).toEqual({ l: 1, c: 0, h: 0 });
+    expect(layers[2].size).toEqual({ rx: SPOT_RADIUS, ry: SPOT_RADIUS });
+    expect([layers[2].cx, layers[2].cy]).toEqual([0.2, 0.8]);
+    expect(layers[3].stops[0].alpha).toBe(CORE_ALPHA);
+    expect(layers[7].stops[0].alpha).toBe(1);
+    expect(layers[11].size).toEqual({ rx: 0.9, ry: 0.9 });
+  });
+
+  it('lists cores, then blobs, both in stop order, then creases underneath, with no light and no spot', () => {
     const layers = paletteToLayers(palette);
     expect(layers).toHaveLength(9);
     const positions = [

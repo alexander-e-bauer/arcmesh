@@ -126,9 +126,11 @@ describe('paletteToCss', () => {
     });
   });
 
-  it('handles a generated five-stop palette, creases included', () => {
+  it('handles a generated five-stop palette: wash, spot, cores, blobs, creases', () => {
     const generated = generatePalette(3, { count: 5 });
     const five = paletteToCss(generated);
-    expect(five.match(/radial-gradient\(/g)).toHaveLength(2 * (5 + 5 + generated.creases.length));
+    const spot = generated.spot === null ? 0 : 1;
+    expect(five.match(/radial-gradient\(/g)).toHaveLength(2 * (2 + spot + 5 + 5 + generated.creases.length));
+    expect(five).toContain(`${formatHex({ l: 1, c: 0, h: 0 }, generated.light!.strength)} 0%`);
   });
 });

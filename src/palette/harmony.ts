@@ -135,6 +135,12 @@ export function pickHues(rng: Rng, count: number): Hues {
   return { baseHue, arc, accentIndex, hues };
 }
 
+// Signed degrees from the base hue, in [-180, 180): an arc stop's place
+// along the arc, greener as it grows in the yellow band.
+export function arcOffset(baseHue: number, h: number): number {
+  return ((((h - baseHue) % 360) + 540) % 360) - 180;
+}
+
 export function bandWeight(h: number): number {
   const delta = Math.abs(wrapHue(h) - BAND_CENTER);
   const dist = Math.min(delta, 360 - delta);
@@ -281,6 +287,15 @@ export function generatePalette(seed: number, options: GenerateOptions = {}): Pa
     // highlight over the arc instead.
     const brightest = lightness.indexOf(Math.max(...lightness));
     [lightness[accentIndex], lightness[brightest]] = [lightness[brightest], lightness[accentIndex]];
+  }
+  if (w >= 0.5) {
+    // In the yellow band the bottom of the ramp goes to the greenest arc
+    // stop. The raised cosine barely lifts hues 60 to 70, so a dim orange
+    // there is brown, where a dim yellow-green is olive and still a color.
+    const arc = hues.map((h, i) => (i === accentIndex ? -Infinity : arcOffset(baseHue, h)));
+    const greenest = arc.indexOf(Math.max(...arc));
+    const darkest = lightness.reduce((best, l, i) => (i !== accentIndex && l < lightness[best] ? i : best), greenest);
+    [lightness[greenest], lightness[darkest]] = [lightness[darkest], lightness[greenest]];
   }
   const chromaScale = rng.range(0.7, 1.0);
   const positions = pickPositions(rng, count);

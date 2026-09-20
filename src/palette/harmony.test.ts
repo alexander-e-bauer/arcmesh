@@ -301,6 +301,23 @@ describe('generatePalette', () => {
     expect(outOfBand).toBeGreaterThan(50);
   });
 
+  it('hands the darkest slot of a yellow-band palette to its greenest arc stop', () => {
+    let checked = 0;
+    for (let seed = 1; seed <= 1000; seed++) {
+      const { baseHue, hues, accentIndex } = huesFor(seed);
+      if (paletteBandWeight(hues, accentIndex) < 0.5) continue;
+      const palette = generatePalette(seed);
+      const arcStops = palette.stops.map((stop, i) => ({ stop, i })).filter(({ i }) => i !== accentIndex);
+      const greenest = arcStops.reduce((best, cur) =>
+        signedHueDelta(baseHue, cur.stop.h) > signedHueDelta(baseHue, best.stop.h) ? cur : best,
+      );
+      const darkest = Math.min(...arcStops.map(({ stop }) => stop.l));
+      expect(greenest.stop.l).toBe(darkest);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(100);
+  });
+
   it('drops the darkest slot below the ramp on some palettes outside the yellow band, never inside it', () => {
     // The ramp alone never goes below this; only the deep drop can.
     const rampFloor = LIGHTNESS_MIN - LIGHTNESS_JITTER - 1e-9;

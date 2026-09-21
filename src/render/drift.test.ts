@@ -42,10 +42,12 @@ describe('driftOf', () => {
         expect([-1, 1]).toContain(d.dy);
         if (d.dx === -1) minus++;
         else plus++;
+        if (d.dy === -1) minus++;
+        else plus++;
       }
     }
-    expect(minus).toBeGreaterThan(200);
-    expect(plus).toBeGreaterThan(200);
+    expect(minus).toBeGreaterThan(400);
+    expect(plus).toBeGreaterThan(400);
     expect(driftOf(palette.stops[0])).toEqual(driftOf({ l: 0.5004, c: 0.1004, h: 200.004 }));
     expect(driftOf(palette.stops[0])).not.toEqual(driftOf(palette.stops[1]));
   });
@@ -62,10 +64,12 @@ describe('driftOf', () => {
 describe('driftPosition', () => {
   it('writes an anchored layer at its stop as the stop\'s custom properties, an offset as a calc, and the lighting literally', () => {
     const position = driftPosition(palette);
-    expect(position({ cx: 0.25, cy: 0.25, size: { rx: 1, ry: 1 }, stops: [], anchor: 0 })).toBe('var(--s0x) var(--s0y)');
-    expect(position({ cx: 1.3, cy: 0.2, size: { rx: 1, ry: 1 }, stops: [], anchor: 1 })).toBe('calc(var(--s1x) + 55.0%) calc(var(--s1y) - 10.0%)');
-    expect(position({ cx: 0.75, cy: 0.9, size: { rx: 1, ry: 1 }, stops: [], anchor: 1 })).toBe('var(--s1x) calc(var(--s1y) + 60.0%)');
+    expect(position({ cx: 0.25, cy: 0.25, size: { rx: 1, ry: 1 }, stops: [], anchor: 0 })).toBe('var(--s0x, 25.0%) var(--s0y, 25.0%)');
+    expect(position({ cx: 1.3, cy: 0.2, size: { rx: 1, ry: 1 }, stops: [], anchor: 1 })).toBe('calc(var(--s1x, 75.0%) + 55.0%) calc(var(--s1y, 30.0%) - 10.0%)');
+    expect(position({ cx: 0.75, cy: 0.9, size: { rx: 1, ry: 1 }, stops: [], anchor: 1 })).toBe('var(--s1x, 75.0%) calc(var(--s1y, 30.0%) + 60.0%)');
     expect(position({ cx: 0, cy: 0.3, size: { rx: 1, ry: 1 }, stops: [], anchor: null })).toBe('0.0% 30.0%');
+    // The sum of the rounded base and the rounded offset is the rounded center.
+    expect(position({ cx: 0.2549, cy: 0.25, size: { rx: 1, ry: 1 }, stops: [], anchor: 0 })).toBe('calc(var(--s0x, 25.0%) + 0.5%) var(--s0y, 25.0%)');
   });
 });
 
@@ -98,11 +102,13 @@ describe('paletteToDriftCss', () => {
     const end = sheet.indexOf('\nanimation: ');
     const declarations = sheet.slice(start, end);
     expect(declarations).toBe(paletteToCss(palette, driftPosition(palette)));
-    // Everything but the positions is the still CSS.
-    const blank = (text: string) => text.replace(/ at [^,]+,/g, ' at _,');
+    // Everything but the positions is the still CSS. A position can itself
+    // hold a parenthesized, comma-bearing var() or calc(), so blank a
+    // balanced paren group as one unit rather than stopping at its comma.
+    const blank = (text: string) => text.replace(/ at (?:[^,(]|\([^)]*\))+,/g, ' at _,');
     expect(blank(declarations)).toBe(blank(still));
-    expect(declarations).toContain(' at var(--s0x) var(--s0y),');
-    expect(declarations).toContain(' at calc(var(--s1x) + 55.0%) calc(var(--s1y) - 10.0%),');
+    expect(declarations).toContain(' at var(--s0x, 25.0%) var(--s0y, 25.0%),');
+    expect(declarations).toContain(' at calc(var(--s1x, 75.0%) + 55.0%) calc(var(--s1y, 30.0%) - 10.0%),');
     expect(declarations).not.toContain('filter:');
     const animation = sheet.slice(end + 1, sheet.indexOf(';\n}', end) + 1);
     expect(animation).toBe(

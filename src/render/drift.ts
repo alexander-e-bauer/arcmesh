@@ -32,19 +32,25 @@ export function driftOf(color: Oklch): Drift {
 }
 
 function pct(value: number): string {
-  return `${(value * 100).toFixed(1)}%`;
+  return `${(Math.round(value * 1000) / 10).toFixed(1)}%`;
 }
 
 function seconds(value: number): string {
   return `${value.toFixed(1)}s`;
 }
 
-// A stop's custom property, plus the layer's offset from the stop when it
-// has one: `var(--s1x)`, or `calc(var(--s1x) + 55.0%)`.
-function term(name: string, delta: number): string {
-  const offset = pct(Math.abs(delta));
-  if (offset === '0.0%') return `var(${name})`;
-  return `calc(var(${name}) ${delta < 0 ? '-' : '+'} ${offset})`;
+// A stop's custom property with its base position as the fallback, plus
+// the layer's offset from the stop when it has one: `var(--s1x, 75.0%)`,
+// or `calc(var(--s1x, 75.0%) + 55.0%)`. The fallback is what an engine
+// without @property shows under reduced motion; with @property the
+// registration's initial value makes it moot.
+function term(name: string, base: number, target: number): string {
+  const reference = `var(${name}, ${pct(base)})`;
+  // The offset in tenths of a percent, taken between the rounded ends so
+  // the sum equals the still CSS's literal exactly.
+  const tenths = Math.round(target * 1000) - Math.round(base * 1000);
+  if (tenths === 0) return reference;
+  return `calc(${reference} ${tenths < 0 ? '-' : '+'} ${(Math.abs(tenths) / 10).toFixed(1)}%)`;
 }
 
 // The position function for the drift stylesheet: an anchored layer's
@@ -54,7 +60,7 @@ export function driftPosition(palette: Palette): Position {
   return (layer: Layer) => {
     if (layer.anchor === null) return literalPosition(layer);
     const stop = palette.stops[layer.anchor];
-    return `${term(`--s${layer.anchor}x`, layer.cx - stop.x)} ${term(`--s${layer.anchor}y`, layer.cy - stop.y)}`;
+    return `${term(`--s${layer.anchor}x`, stop.x, layer.cx)} ${term(`--s${layer.anchor}y`, stop.y, layer.cy)}`;
   };
 }
 

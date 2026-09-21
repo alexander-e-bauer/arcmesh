@@ -12,7 +12,7 @@ interface CanvasProps {
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
 // The preview is the palette CSS applied through a style element, so the
-// copied string and the rendered element never drift apart. It goes on a
+// copied string and the rendered element never diverge. It goes on a
 // child that fills the canvas rather than on the canvas itself, because
 // the warp is a filter and a filter warps an element's children; the
 // handles sit beside the mesh, above it, unwarped. While the palette

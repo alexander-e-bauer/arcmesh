@@ -182,4 +182,17 @@ describe('App', () => {
     expect(paletteInUrl()!.drift).toBe(true);
     expect(button).toHaveAttribute('aria-pressed', 'true');
   });
+
+  it('copies the still CSS while drifting', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const palette = { ...generatePalette(31), drift: true };
+    window.history.replaceState(null, '', `#${encodePalette(palette)}`);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Copy CSS' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const copied = writeText.mock.calls[0][0] as string;
+    expect(copied).toBe(paletteToCss(decodePalette(encodePalette(palette))!));
+    expect(copied).not.toContain('@property');
+  });
 });

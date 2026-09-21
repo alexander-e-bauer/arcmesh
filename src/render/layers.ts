@@ -11,6 +11,7 @@ import {
 } from '../palette/harmony';
 import { clampChroma, wrapHue, type Oklch } from '../palette/oklch';
 import { createRng } from '../palette/rng';
+import { codecText, hash32 } from './hash';
 
 // Where each blob fades out, as a fraction of its ellipse. Varying it by
 // stop keeps the blobs from reading as identical circles.
@@ -55,6 +56,9 @@ export interface Layer {
   cy: number;
   size: LayerSize;
   stops: GradientStop[];
+  // The stop this layer follows when the mesh drifts, or null for the
+  // lighting, which stays put.
+  anchor: number | null;
 }
 
 function colorOf(stop: Stop): Oklch {
@@ -69,25 +73,6 @@ export function farthestCorner(x: number, y: number): LayerSize {
     rx: Math.SQRT2 * Math.max(x, 1 - x),
     ry: Math.SQRT2 * Math.max(y, 1 - y),
   };
-}
-
-// FNV-1a over a short string, into 32 bits.
-function hash32(text: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return h >>> 0;
-}
-
-// The stop's color as the codec writes it (hue to two decimals, chroma and
-// lightness to three). Anything derived from it rather than from a fresh
-// draw stays with a locked stop, renders the same from a decoded link
-// because the hash sees the same text, and cannot change under a drag
-// because position is not an input.
-function codecText(color: Oklch): string {
-  return `${color.h.toFixed(2)},${color.c.toFixed(3)},${color.l.toFixed(3)}`;
 }
 
 export function blobStretch(color: Oklch): { sx: number; sy: number } {
@@ -113,6 +98,7 @@ export function coreLayer(stop: Stop, index: number): Layer {
     cx: stop.x,
     cy: stop.y,
     size: { rx: blob.size.rx * CORE_SCALE, ry: blob.size.ry * CORE_SCALE },
+    anchor: index,
     stops: [
       { offset: 0, color, alpha: CORE_ALPHA },
       { offset: 1, color, alpha: 0 },
@@ -131,6 +117,7 @@ export function blobLayer(stop: Stop, index: number): Layer {
     cx: stop.x,
     cy: stop.y,
     size: { rx: base.rx * sx, ry: base.ry * sy },
+    anchor: index,
     stops: [
       { offset: 0, color, alpha: 1 },
       { offset: FALLOFF[index % FALLOFF.length] / 100, color, alpha: 0 },
@@ -144,6 +131,7 @@ export function creaseLayer(crease: Crease, stop: Stop): Layer {
     cx: crease.cx,
     cy: crease.cy,
     size: { rx: crease.r, ry: crease.r },
+    anchor: crease.stop,
     stops: [
       { offset: 0, color, alpha: 0 },
       { offset: crease.t0, color, alpha: 0 },
@@ -157,12 +145,13 @@ export function creaseLayer(crease: Crease, stop: Stop): Layer {
 // A point of light: a small blob at the stop, lifted a little, opaque at
 // the center. Sized in unit space on both axes so it follows the canvas
 // aspect like everything else.
-export function spotLayer(stop: Stop): Layer {
+export function spotLayer(stop: Stop, index: number): Layer {
   const color = clampChroma({ l: Math.min(1, stop.l + SPOT_LIFT), c: stop.c, h: stop.h });
   return {
     cx: stop.x,
     cy: stop.y,
     size: { rx: SPOT_RADIUS, ry: SPOT_RADIUS },
+    anchor: index,
     stops: [
       { offset: 0, color, alpha: 1 },
       { offset: 1, color, alpha: 0 },
@@ -180,6 +169,7 @@ export function washLayers(light: Light, background: Oklch): [Layer, Layer] {
     cx,
     cy,
     size: farthestCorner(cx, cy),
+    anchor: null,
     stops: [
       { offset: 0, color, alpha },
       { offset: WASH_REACH, color, alpha: 0 },
@@ -199,7 +189,7 @@ export function washLayers(light: Light, background: Oklch): [Layer, Layer] {
 export function paletteToLayers(palette: Palette): Layer[] {
   return [
     ...(palette.light ? washLayers(palette.light, palette.background) : []),
-    ...(palette.spot !== null ? [spotLayer(palette.stops[palette.spot])] : []),
+    ...(palette.spot !== null ? [spotLayer(palette.stops[palette.spot], palette.spot)] : []),
     ...palette.stops.map((stop, index) => coreLayer(stop, index)),
     ...palette.stops.map((stop, index) => blobLayer(stop, index)),
     ...palette.creases.map((crease) => creaseLayer(crease, palette.stops[crease.stop])),

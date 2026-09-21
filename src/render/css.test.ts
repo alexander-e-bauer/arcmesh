@@ -73,6 +73,7 @@ describe('paletteToCss', () => {
   it('emits no filter for a palette without a warp', () => {
     expect(css).not.toContain('filter:');
     expect(css.endsWith(';')).toBe(true);
+    expect(css).not.toContain('anchor');
   });
 
   it('lists one blend mode per layer, creases included', () => {

@@ -147,7 +147,7 @@ describe('coreLayer', () => {
 describe('spotLayer', () => {
   it('is a small blob at the stop in its color lifted a little, opaque at the center', () => {
     const stop = palette.stops[2];
-    const layer = spotLayer(stop);
+    const layer = spotLayer(stop, 2);
     const color = clampChroma({ l: stop.l + SPOT_LIFT, c: stop.c, h: stop.h });
     expect(layer.cx).toBe(stop.x);
     expect(layer.cy).toBe(stop.y);
@@ -159,7 +159,7 @@ describe('spotLayer', () => {
   });
 
   it('never lifts past white', () => {
-    expect(spotLayer({ ...palette.stops[2], l: 0.98 }).stops[0].color.l).toBeLessThanOrEqual(1);
+    expect(spotLayer({ ...palette.stops[2], l: 0.98 }, 2).stops[0].color.l).toBeLessThanOrEqual(1);
   });
 });
 
@@ -210,6 +210,18 @@ describe('creaseLayer', () => {
     const near = creaseLayer(palette.creases[0], palette.stops[1]);
     expect((1 - fold.stops[3].offset) * 9).toBeCloseTo(CREASE_FEATHER, 12);
     expect((1 - near.stops[3].offset) * 0.9).toBeCloseTo(CREASE_FEATHER, 12);
+  });
+});
+
+describe('layer anchors', () => {
+  it('name the stop each layer follows, and none for the lighting', () => {
+    const lit = { ...palette, light: { x: 0, y: 0.3, strength: 0.12 }, spot: 2 };
+    const layers = paletteToLayers(lit);
+    expect(layers.map((layer) => layer.anchor)).toEqual([null, null, 2, 0, 1, 2, 3, 0, 1, 2, 3, 1]);
+    expect(blobLayer(palette.stops[3], 3).anchor).toBe(3);
+    expect(coreLayer(palette.stops[3], 3).anchor).toBe(3);
+    expect(spotLayer(palette.stops[3], 3).anchor).toBe(3);
+    expect(creaseLayer(palette.creases[0], palette.stops[1]).anchor).toBe(1);
   });
 });
 

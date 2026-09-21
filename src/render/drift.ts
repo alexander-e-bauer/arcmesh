@@ -8,8 +8,8 @@ import type { Layer } from './layers';
 // How far a stop wanders from its base, in unit canvas space (x in widths,
 // y in heights), and how long one swing takes, per axis. Hashed from the
 // stop, so nothing is stored and a locked stop keeps its motion.
-export const DRIFT_AMPLITUDE: readonly [number, number] = [0.03, 0.07];
-export const DRIFT_PERIOD: readonly [number, number] = [18, 40];
+export const DRIFT_AMPLITUDE: readonly [number, number] = [0.06, 0.12];
+export const DRIFT_PERIOD: readonly [number, number] = [6, 14];
 
 export interface Drift {
   ax: number;

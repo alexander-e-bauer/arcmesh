@@ -9,7 +9,7 @@ import type { Layer } from './layers';
 // y in heights), and how long one swing takes, per axis. Hashed from the
 // stop, so nothing is stored and a locked stop keeps its motion.
 export const DRIFT_AMPLITUDE: readonly [number, number] = [0.06, 0.12];
-export const DRIFT_PERIOD: readonly [number, number] = [6, 14];
+export const DRIFT_PERIOD: readonly [number, number] = [16, 30];
 
 export interface Drift {
   ax: number;
@@ -54,8 +54,8 @@ function term(name: string, base: number, target: number): string {
 }
 
 // The position function for the drift stylesheet: an anchored layer's
-// center is its stop's custom properties plus its offset from the stop,
-// so a crease follows its stop; the lighting keeps its literal position.
+// center is its stop's custom properties plus its offset from the stop;
+// the lighting and the creases keep their literal positions.
 export function driftPosition(palette: Palette): Position {
   return (layer: Layer) => {
     if (layer.anchor === null) return literalPosition(layer);

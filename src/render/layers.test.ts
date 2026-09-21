@@ -214,14 +214,14 @@ describe('creaseLayer', () => {
 });
 
 describe('layer anchors', () => {
-  it('name the stop each layer follows, and none for the lighting', () => {
+  it('name the stop each layer follows, and none for the lighting or the creases', () => {
     const lit = { ...palette, light: { x: 0, y: 0.3, strength: 0.12 }, spot: 2 };
     const layers = paletteToLayers(lit);
-    expect(layers.map((layer) => layer.anchor)).toEqual([null, null, 2, 0, 1, 2, 3, 0, 1, 2, 3, 1]);
+    expect(layers.map((layer) => layer.anchor)).toEqual([null, null, 2, 0, 1, 2, 3, 0, 1, 2, 3, null]);
     expect(blobLayer(palette.stops[3], 3).anchor).toBe(3);
     expect(coreLayer(palette.stops[3], 3).anchor).toBe(3);
     expect(spotLayer(palette.stops[3], 3).anchor).toBe(3);
-    expect(creaseLayer(palette.creases[0], palette.stops[1]).anchor).toBe(1);
+    expect(creaseLayer(palette.creases[0], palette.stops[1]).anchor).toBeNull();
   });
 });
 

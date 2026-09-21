@@ -64,6 +64,8 @@ describe('driftOf', () => {
 describe('driftPosition', () => {
   it('writes an anchored layer at its stop as the stop\'s custom properties, an offset as a calc, and the lighting literally', () => {
     const position = driftPosition(palette);
+    // No layer paletteToLayers makes sits at an offset from its stop since
+    // the creases hold still; the calc form stays for any layer that does.
     expect(position({ cx: 0.25, cy: 0.25, size: { rx: 1, ry: 1 }, stops: [], anchor: 0 })).toBe('var(--s0x, 25.0%) var(--s0y, 25.0%)');
     expect(position({ cx: 1.3, cy: 0.2, size: { rx: 1, ry: 1 }, stops: [], anchor: 1 })).toBe('calc(var(--s1x, 75.0%) + 55.0%) calc(var(--s1y, 30.0%) - 10.0%)');
     expect(position({ cx: 0.75, cy: 0.9, size: { rx: 1, ry: 1 }, stops: [], anchor: 1 })).toBe('var(--s1x, 75.0%) calc(var(--s1y, 30.0%) + 60.0%)');
@@ -108,7 +110,9 @@ describe('paletteToDriftCss', () => {
     const blank = (text: string) => text.replace(/ at (?:[^,(]|\([^)]*\))+,/g, ' at _,');
     expect(blank(declarations)).toBe(blank(still));
     expect(declarations).toContain(' at var(--s0x, 25.0%) var(--s0y, 25.0%),');
-    expect(declarations).toContain(' at calc(var(--s1x, 75.0%) + 55.0%) calc(var(--s1y, 30.0%) - 10.0%),');
+    // The crease holds still.
+    expect(declarations).toContain(' at 130.0% 20.0%,');
+    expect(declarations).not.toContain('calc(');
     expect(declarations).not.toContain('filter:');
     const animation = sheet.slice(end + 1, sheet.indexOf(';\n}', end) + 1);
     expect(animation).toBe(

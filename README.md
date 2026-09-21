@@ -18,11 +18,13 @@ Some creases are straight: a crease whose center sits far off the canvas is a fo
 
 A faint grain sits over everything: an SVG tile of fractal noise blended soft-light at 8 percent, which hides banding in the long fades and makes the mesh read as printed rather than computed. It is one more `background-image` layer, a data URI, so the copied CSS still stands alone.
 
+Everything is then warped: a seeded fractal noise pushes every pixel a little, so the crease edges wave instead of arcing and the cores and the spot go irregular, the way a poured surface does. It is one SVG filter, a data URI in a `filter` declaration, and the same filter runs over the PNG on a canvas, so the download is the preview scaled. The filter is written in pixels for a 960 pixel wide element, the size of the preview; on a wider element the noise repeats more often and pushes by a smaller share of the width, as the grain keeps its pixel size too. Apply the copied CSS to an element with no children, since a filter warps them along with the background.
+
 The preview is a stack of CSS radial-gradients applied through a style element, and the copied CSS is that same string. What you see is what you paste.
 
 ## Use
 
-Space or the Randomize button rerolls every unlocked stop, creases included. Click a swatch to lock it, and it keeps a crease through rerolls. Drag a blob to move it, crease and all. Copy CSS copies the declarations. Download PNG renders the same layers to a canvas at a preset or custom size, up to 8192 pixels a side. The URL hash holds the whole palette, so a link reproduces it.
+Space or the Randomize button rerolls every unlocked stop, creases and warp included. Click a swatch to lock it, and it keeps a crease through rerolls. Drag a blob to move it, crease and all. Copy CSS copies the declarations. Download PNG renders the same layers to a canvas at a preset or custom size, up to 8192 pixels a side. The URL hash holds the whole palette, so a link reproduces it.
 
 ## Run
 
@@ -41,7 +43,7 @@ No backend, no environment variables, no accounts. It deploys as a static site.
 
 `src/palette` is the engine: a seeded generator, the OKLCH math, the harmony rules, and the URL codec. It imports nothing from React or the DOM and is tested directly, including a property test that generates a thousand palettes and guards that every color is in gamut and every palette honors the arc rule.
 
-`src/render/layers.ts` describes a palette as one ordered list of radial-gradient layers; `src/render/css.ts` emits that list as CSS and `src/render/canvas.ts` draws it to a canvas for the PNG, so the preview and the download cannot drift apart. `src/render/grain.ts` holds the noise tile for both. The one residual is the browser's own: on a wide-gamut display Chrome composites CSS layers in the display's color space and the canvas composites in sRGB, so saturated overlaps in the preview can sit a few levels away from the PNG. `src/components` and `src/App.tsx` are the React shell.
+`src/render/layers.ts` describes a palette as one ordered list of radial-gradient layers; `src/render/css.ts` emits that list as CSS and `src/render/canvas.ts` draws it to a canvas for the PNG, so the preview and the download cannot drift apart. `src/render/grain.ts` holds the noise tile for both, and `src/render/warp.ts` writes the displacement filter both apply last. The one residual is the browser's own: on a wide-gamut display Chrome composites CSS layers in the display's color space and the canvas composites in sRGB, so saturated overlaps in the preview can sit a few levels away from the PNG. `src/components` and `src/App.tsx` are the React shell.
 
 The OKLCH to sRGB conversion is written out rather than imported. It is about sixty lines, uses the standard Ottosson coefficients, and is tested against published values for the sRGB primaries.
 

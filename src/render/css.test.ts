@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { generatePalette, type Palette } from '../palette/harmony';
-import { FALLOFF, formatHex, formatOklch, paletteToCss } from './css';
+import { FALLOFF, formatHex, formatOklch, literalPosition, paletteToCss } from './css';
+import { paletteToLayers } from './layers';
 import { GRAIN_BLEND, grainCssLayer } from './grain';
 import { WARP_REFERENCE_WIDTH, warpFilterCss } from './warp';
 
@@ -96,6 +97,20 @@ describe('paletteToCss', () => {
   it('places each layer at the stop position in percent', () => {
     expect(css).toContain('at 25.0% 25.0%');
     expect(css).toContain('at 75.0% 30.0%');
+  });
+
+  it('writes positions through a function, the literal percentages by default', () => {
+    expect(literalPosition({ cx: 0.25, cy: 0.3, size: { rx: 1, ry: 1 }, stops: [], anchor: null })).toBe('25.0% 30.0%');
+    expect(literalPosition({ cx: 1.3, cy: -0.05, size: { rx: 1, ry: 1 }, stops: [], anchor: null })).toBe('130.0% -5.0%');
+    expect(paletteToCss(palette, literalPosition)).toBe(css);
+    // Each layer's position appears twice, in the hex block and in the
+    // oklch block, so each is replaced twice.
+    let expected = css;
+    for (const layer of paletteToLayers(palette)) {
+      expected = expected.replace(` at ${literalPosition(layer)},`, ` at var(--p${layer.anchor}),`);
+      expected = expected.replace(` at ${literalPosition(layer)},`, ` at var(--p${layer.anchor}),`);
+    }
+    expect(paletteToCss(palette, (layer) => `var(--p${layer.anchor})`)).toBe(expected);
   });
 
   it('fades every blob to its own color at alpha 0 between 55 and 75 percent', () => {

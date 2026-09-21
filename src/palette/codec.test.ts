@@ -107,7 +107,7 @@ describe('palette codec', () => {
       drift: false,
     };
     const encoded = encodePalette(palette);
-    expect(decodeText(encoded).startsWith('4|9|')).toBe(true);
+    expect(decodeText(encoded).startsWith('5|9|')).toBe(true);
     const decoded = decodePalette(encoded);
     expect(decoded).not.toBeNull();
     expect(decoded!.creases).toEqual(palette.creases);
@@ -119,7 +119,7 @@ describe('palette codec', () => {
     expect(palette.light).not.toBeNull();
     const encoded = encodePalette(palette);
     const text = decodeText(encoded);
-    expect(text.split('|')).toHaveLength(8);
+    expect(text.split('|')).toHaveLength(9);
     const decoded = decodePalette(encoded)!;
     expect(decoded.light!.x).toBeCloseTo(palette.light!.x, 3);
     expect(decoded.light!.y).toBeCloseTo(palette.light!.y, 3);
@@ -166,8 +166,8 @@ describe('palette codec', () => {
     expect(palette.warp).not.toBeNull();
     const encoded = encodePalette(palette);
     const text = decodeText(encoded);
-    expect(text.startsWith('4|5|')).toBe(true);
-    expect(text.split('|')).toHaveLength(8);
+    expect(text.startsWith('5|5|')).toBe(true);
+    expect(text.split('|')).toHaveLength(9);
     expect(text.split('|')[7]).toMatch(/^\d+,\d+\.\d\d,\d\.\d\d\d$/);
     const decoded = decodePalette(encoded)!;
     expect(decoded.warp!.seed).toBe(palette.warp!.seed);
@@ -179,7 +179,7 @@ describe('palette codec', () => {
   it('writes an empty warp field for a palette without one, and reads it back as null', () => {
     const palette = { ...generatePalette(5), warp: null };
     const text = decodeText(encodePalette(palette));
-    expect(text.split('|')).toHaveLength(8);
+    expect(text.split('|')).toHaveLength(9);
     expect(text.split('|')[7]).toBe('');
     expect(decodePalette(encodePalette(palette))!.warp).toBeNull();
   });
@@ -199,6 +199,47 @@ describe('palette codec', () => {
     expect(decoded.warp).toEqual({ seed: 9999, frequency: 8, strength: 0.25 });
     expect(decoded.light).toBeNull();
     expect(decoded.spot).toBeNull();
+  });
+
+  it('round-trips the play state and writes version 5', () => {
+    const still = generatePalette(5);
+    const moving = { ...still, drift: true };
+    const encodedStill = encodePalette(still);
+    const encodedMoving = encodePalette(moving);
+    expect(decodeText(encodedStill).startsWith('5|5|')).toBe(true);
+    expect(decodeText(encodedStill).split('|')).toHaveLength(9);
+    expect(decodeText(encodedStill).split('|')[8]).toBe('');
+    expect(decodeText(encodedMoving).split('|')[8]).toBe('1');
+    expect(decodePalette(encodedStill)!.drift).toBe(false);
+    expect(decodePalette(encodedMoving)!.drift).toBe(true);
+    expect(encodePalette(decodePalette(encodedMoving)!)).toBe(encodedMoving);
+  });
+
+  it('decodes a version 4 hash as still, with its warp', () => {
+    const v4 = btoa('4|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||||7,2.5,0.1');
+    const decoded = decodePalette(v4)!;
+    expect(decoded.warp).toEqual({ seed: 7, frequency: 2.5, strength: 0.1 });
+    expect(decoded.drift).toBe(false);
+  });
+
+  it('accepts a version 5 hash with every optional field empty', () => {
+    const text = '5|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0|||||';
+    const decoded = decodePalette(btoa(text))!;
+    expect(decoded.creases).toEqual([]);
+    expect(decoded.light).toBeNull();
+    expect(decoded.spot).toBeNull();
+    expect(decoded.warp).toBeNull();
+    expect(decoded.drift).toBe(false);
+  });
+
+  it.each([
+    ['version 6', '6|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||||7,2.5,0.1|1'],
+    ['version 5 with eight fields', '5|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||||7,2.5,0.1'],
+    ['drift 2', '5|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||||7,2.5,0.1|2'],
+    ['drift true', '5|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||||7,2.5,0.1|true'],
+    ['drift 0', '5|1|0.16,0.02,10|10,0.1,0.5,0.5,0.5,0;20,0.1,0.5,0.5,0.5,0;30,0.1,0.5,0.5,0.5,0;40,0.1,0.5,0.5,0.5,0||||7,2.5,0.1|0'],
+  ])('rejects %s', (_name, text) => {
+    expect(decodePalette(btoa(text))).toBeNull();
   });
 
   it.each([

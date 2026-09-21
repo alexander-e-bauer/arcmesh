@@ -4,11 +4,12 @@ import type { Oklch } from './oklch';
 // The URL hash carries the whole palette, not just the seed: a locked stop
 // that survived a reroll came from an older seed, so the seed alone cannot
 // rebuild it. Text form, before base64url:
-//   4|<seed>|<bg l>,<bg c>,<bg h>|<h>,<c>,<l>,<x>,<y>,<locked>;...|<stop>,<cx>,<cy>,<r>,<t0>,<t1>;...|<lx>,<ly>,<strength>|<spot>|<warp seed>,<frequency>,<strength>
+//   5|<seed>|<bg l>,<bg c>,<bg h>|<h>,<c>,<l>,<x>,<y>,<locked>;...|<stop>,<cx>,<cy>,<r>,<t0>,<t1>;...|<lx>,<ly>,<strength>|<spot>|<warp seed>,<frequency>,<strength>|<drift>
 // Version 1 had no crease field; version 2 had no light and no spot;
-// version 3 had no warp. All still decode, with those parts empty.
-const VERSION = '4';
-const FIELDS: Record<string, number> = { '1': 4, '2': 5, '3': 7, '4': 8 };
+// version 3 had no warp; version 4 had no drift flag. All still decode,
+// with those parts empty.
+const VERSION = '5';
+const FIELDS: Record<string, number> = { '1': 4, '2': 5, '3': 7, '4': 8, '5': 9 };
 const MIN_STOPS = 4;
 const MAX_STOPS = 5;
 
@@ -40,7 +41,8 @@ export function encodePalette(palette: Palette): string {
   const warp = palette.warp
     ? [String(palette.warp.seed), palette.warp.frequency.toFixed(2), palette.warp.strength.toFixed(3)].join(',')
     : '';
-  return toBase64Url([VERSION, String(palette.seed), background, stops, creases, light, spot, warp].join('|'));
+  const drift = palette.drift ? '1' : '';
+  return toBase64Url([VERSION, String(palette.seed), background, stops, creases, light, spot, warp, drift].join('|'));
 }
 
 export function decodePalette(encoded: string): Palette | null {
@@ -50,6 +52,8 @@ export function decodePalette(encoded: string): Palette | null {
   const parts = text.split('|');
   const version = parts[0];
   if (FIELDS[version] !== parts.length) return null;
+
+  const generation = Number(version);
 
   const seed = Number(parts[1]);
   if (parts[1] === '' || !Number.isInteger(seed) || seed < 0) return null;
@@ -80,7 +84,7 @@ export function decodePalette(encoded: string): Palette | null {
 
   let light: Light | null = null;
   let spot: number | null = null;
-  if (version === '3' || version === '4') {
+  if (generation >= 3) {
     if (parts[5] !== '') {
       light = parseLight(parts[5].split(','));
       if (light === null) return null;
@@ -92,12 +96,18 @@ export function decodePalette(encoded: string): Palette | null {
   }
 
   let warp: Warp | null = null;
-  if (version === '4' && parts[7] !== '') {
+  if (generation >= 4 && parts[7] !== '') {
     warp = parseWarp(parts[7].split(','));
     if (warp === null) return null;
   }
 
-  return { seed, background, stops, creases, light, spot, warp, drift: false };
+  let drift = false;
+  if (generation >= 5) {
+    if (parts[8] === '1') drift = true;
+    else if (parts[8] !== '') return null;
+  }
+
+  return { seed, background, stops, creases, light, spot, warp, drift };
 }
 
 function parseLight(parts: string[]): Light | null {

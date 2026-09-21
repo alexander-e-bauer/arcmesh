@@ -68,6 +68,11 @@ button:hover {
   touch-action: none;
 }
 
+.mesh {
+  position: absolute;
+  inset: 0;
+}
+
 .handle {
   position: absolute;
   width: 20px;

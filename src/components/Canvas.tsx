@@ -11,7 +11,10 @@ interface CanvasProps {
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
 // The preview is the palette CSS applied through a style element, so the
-// copied string and the rendered element never drift apart.
+// copied string and the rendered element never drift apart. It goes on a
+// child that fills the canvas rather than on the canvas itself, because
+// the warp is a filter and a filter warps an element's children; the
+// handles sit beside the mesh, above it, unwarped.
 export function Canvas({ palette, onMove }: CanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragging = useRef<number | null>(null);
@@ -27,7 +30,8 @@ export function Canvas({ palette, onMove }: CanvasProps) {
 
   return (
     <div className="canvas" ref={canvasRef} data-testid="canvas">
-      <style>{`.canvas {\n${paletteToCss(palette)}\n}`}</style>
+      <style>{`.canvas > .mesh {\n${paletteToCss(palette)}\n}`}</style>
+      <div className="mesh" data-testid="mesh" />
       {palette.stops.map((stop, index) => (
         <span
           key={index}

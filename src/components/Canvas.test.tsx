@@ -5,12 +5,22 @@ import { paletteToCss } from '../render/css';
 import { Canvas } from './Canvas';
 
 describe('Canvas', () => {
-  it('renders one handle per stop and the palette CSS in a style element', () => {
+  it('renders one handle per stop beside a mesh element that carries the palette CSS', () => {
     const palette = generatePalette(4, { count: 5 });
     const { container } = render(<Canvas palette={palette} onMove={vi.fn()} />);
     expect(screen.getAllByTestId('handle')).toHaveLength(5);
     const style = container.querySelector('style');
-    expect(style?.textContent).toContain(paletteToCss(palette));
+    expect(style?.textContent).toBe(`.canvas > .mesh {\n${paletteToCss(palette)}\n}`);
+    const mesh = screen.getByTestId('mesh');
+    const canvas = screen.getByTestId('canvas');
+    expect(mesh.parentElement).toBe(canvas);
+    expect(mesh.childElementCount).toBe(0);
+    // The filter in that CSS would warp anything inside the mesh, so the
+    // handles come after it, as siblings.
+    for (const handle of screen.getAllByTestId('handle')) {
+      expect(handle.parentElement).toBe(canvas);
+      expect(mesh.compareDocumentPosition(handle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
   });
 
   it('reports drags as unit coordinates', () => {

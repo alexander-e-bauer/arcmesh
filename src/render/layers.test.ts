@@ -18,6 +18,7 @@ const palette: Palette = {
   light: null,
   spot: null,
   warp: null,
+  drift: false,
 };
 
 describe('farthestCorner', () => {

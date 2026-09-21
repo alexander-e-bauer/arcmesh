@@ -19,6 +19,7 @@ const palette: Palette = {
   light: null,
   spot: null,
   warp: null,
+  drift: false,
 };
 
 interface Op {

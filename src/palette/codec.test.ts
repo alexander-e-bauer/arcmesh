@@ -104,6 +104,7 @@ describe('palette codec', () => {
       light: null,
       spot: null,
       warp: null,
+      drift: false,
     };
     const encoded = encodePalette(palette);
     expect(decodeText(encoded).startsWith('4|9|')).toBe(true);

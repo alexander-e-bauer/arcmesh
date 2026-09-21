@@ -97,7 +97,7 @@ export function decodePalette(encoded: string): Palette | null {
     if (warp === null) return null;
   }
 
-  return { seed, background, stops, creases, light, spot, warp };
+  return { seed, background, stops, creases, light, spot, warp, drift: false };
 }
 
 function parseLight(parts: string[]): Light | null {

@@ -48,6 +48,10 @@ export interface Palette {
   spot: number | null;
   // Null only for a link written before round five.
   warp: Warp | null;
+  // Whether the preview is moving. View state, but it lives here because
+  // the palette is what the link carries: off for a fresh palette, kept
+  // through a reroll and a drag.
+  drift: boolean;
 }
 
 export interface Point {
@@ -404,7 +408,7 @@ export function generatePalette(seed: number, options: GenerateOptions = {}): Pa
     return { ...color, x: positions[i].x, y: positions[i].y, locked: false };
   });
 
-  return { stops, creases, background, seed, light, spot, warp };
+  return { stops, creases, background, seed, light, spot, warp, drift: false };
 }
 
 // A dragged stop takes its crease along by the same delta, so the hard
@@ -450,5 +454,5 @@ export function rerollPalette(previous: Palette, seed: number): Palette {
       : fresh.spot !== null && !locked.has(fresh.spot)
         ? fresh.spot
         : null;
-  return { ...fresh, stops, creases, spot };
+  return { ...fresh, stops, creases, spot, drift: previous.drift };
 }

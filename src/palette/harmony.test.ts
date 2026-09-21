@@ -467,6 +467,10 @@ describe('generatePalette', () => {
       expect(palette.warp!.strength).toBe(warpStrength);
     }
   });
+
+  it('starts still: drift is off for every generated palette', () => {
+    for (let seed = 1; seed <= 50; seed++) expect(generatePalette(seed).drift).toBe(false);
+  });
 });
 
 describe('rerollPalette', () => {
@@ -528,6 +532,20 @@ describe('rerollPalette', () => {
   it('leaves the warp alone when a stop is dragged', () => {
     const palette = generatePalette(8);
     expect(moveStop(palette, 0, 0.4, 0.6).warp).toBe(palette.warp);
+  });
+
+  it('keeps the play state through a reroll, on or off', () => {
+    const still = generatePalette(8);
+    expect(rerollPalette(still, 9).drift).toBe(false);
+    const moving = { ...still, drift: true };
+    const next = rerollPalette(moving, 9);
+    expect(next.drift).toBe(true);
+    expect(next.seed).toBe(9);
+  });
+
+  it('keeps the play state when a stop is dragged', () => {
+    const moving = { ...generatePalette(8), drift: true };
+    expect(moveStop(moving, 0, 0.4, 0.6).drift).toBe(true);
   });
 
   it('keeps the stop count of the previous palette', () => {

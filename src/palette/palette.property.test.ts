@@ -114,6 +114,10 @@ describe('a thousand generated palettes', () => {
     }
   });
 
+  it('start still', () => {
+    for (const palette of palettes) expect(palette.drift).toBe(false);
+  });
+
   it('keep their warp through the link, to the codec\'s precision', () => {
     for (const palette of palettes) {
       const decoded = decodePalette(encodePalette(palette));

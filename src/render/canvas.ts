@@ -71,12 +71,14 @@ export function drawPalette(ctx: Context2D, palette: Palette, width: number, hei
 // names, written for this width. Never per layer: the filter's edge
 // treatment belongs to the finished mesh. An engine that cannot apply a
 // url() filter leaves the property as it was, so the readback is the
-// detect; then nothing is drawn and the caller paints the flat mesh.
+// detect; an engine with no filter property at all would take the
+// assignment as a plain field and read it back, so that case is checked
+// first. Either way nothing is drawn and the caller paints the flat mesh.
 export function warpPalette(ctx: Context2D, flat: CanvasImageSource, warp: Warp, width: number): boolean {
   const filter = warpFilterCss(warp, width);
   ctx.save();
   ctx.filter = filter;
-  const applied = ctx.filter === filter;
+  const applied = 'filter' in ctx && ctx.filter === filter;
   if (applied) ctx.drawImage(flat, 0, 0);
   ctx.restore();
   return applied;
@@ -103,6 +105,10 @@ export async function renderPng(palette: Palette, width: number, height: number)
     const [flat, flatCtx] = blankCanvas(width, height);
     drawPalette(flatCtx, palette, width, height, grain);
     if (!warpPalette(ctx, flat, palette.warp, width)) ctx.drawImage(flat, 0, 0);
+    // Drop the flat canvas's backing store now rather than at collection;
+    // at 8192 by 8192 it is a quarter gigabyte.
+    flat.width = 0;
+    flat.height = 0;
   } else {
     drawPalette(ctx, palette, width, height, grain);
   }

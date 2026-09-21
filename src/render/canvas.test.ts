@@ -64,7 +64,7 @@ function fakeContext(acceptsFilter = true) {
       return gradient as unknown as CanvasGradient;
     },
   };
-  return { ctx: ctx as unknown as Context2D, ops, gradients };
+  return { ctx: ctx as Context2D, ops, gradients };
 }
 
 const tile = { tile: true } as unknown as CanvasImageSource;

@@ -456,11 +456,15 @@ describe('generatePalette', () => {
       const strength = rng.range(WASH_STRENGTH[0], WASH_STRENGTH[1]);
       rng.chance(SPOT_PROBABILITY);
       const warpSeed = rng.int(1, WARP_SEED_MAX);
+      const warpFrequency = rng.range(WARP_FREQUENCY[0], WARP_FREQUENCY[1]);
+      const warpStrength = rng.range(WARP_STRENGTH[0], WARP_STRENGTH[1]);
       const palette = generatePalette(seed);
       expect(palette.light!.strength).toBe(strength);
       const reach = exitDistance(0.5, 0.5, Math.cos(phi), Math.sin(phi));
       expect(palette.light!.x).toBeCloseTo(0.5 + reach * Math.cos(phi), 12);
       expect(palette.warp!.seed).toBe(warpSeed);
+      expect(palette.warp!.frequency).toBe(warpFrequency);
+      expect(palette.warp!.strength).toBe(warpStrength);
     }
   });
 });

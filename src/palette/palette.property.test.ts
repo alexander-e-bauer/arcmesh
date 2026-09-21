@@ -17,6 +17,7 @@ import {
 } from './harmony';
 import { inGamut, oklchToSrgb } from './oklch';
 import { createRng } from './rng';
+import { decodePalette, encodePalette } from './codec';
 
 // Smallest arc that contains every hue: 360 minus the largest gap between
 // neighbors on the circle.
@@ -110,6 +111,16 @@ describe('a thousand generated palettes', () => {
       expect(palette.warp!.frequency).toBeLessThanOrEqual(WARP_FREQUENCY[1]);
       expect(palette.warp!.strength).toBeGreaterThanOrEqual(WARP_STRENGTH[0]);
       expect(palette.warp!.strength).toBeLessThanOrEqual(WARP_STRENGTH[1]);
+    }
+  });
+
+  it('keep their warp through the link, to the codec\'s precision', () => {
+    for (const palette of palettes) {
+      const decoded = decodePalette(encodePalette(palette));
+      expect(decoded).not.toBeNull();
+      expect(decoded!.warp!.seed).toBe(palette.warp!.seed);
+      expect(decoded!.warp!.frequency).toBeCloseTo(palette.warp!.frequency, 2);
+      expect(decoded!.warp!.strength).toBeCloseTo(palette.warp!.strength, 3);
     }
   });
 

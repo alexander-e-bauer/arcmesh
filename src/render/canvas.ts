@@ -69,16 +69,17 @@ export function drawPalette(ctx: Context2D, palette: Palette, width: number, hei
 
 // Warps the flat mesh onto ctx in one pass through the filter the CSS
 // names, written for this width. Never per layer: the filter's edge
-// treatment belongs to the finished mesh. An engine that cannot apply a
-// url() filter leaves the property as it was, so the readback is the
-// detect; an engine with no filter property at all would take the
-// assignment as a plain field and read it back, so that case is checked
-// first. Either way nothing is drawn and the caller paints the flat mesh.
+// treatment belongs to the finished mesh. An engine with no filter
+// property at all is refused before anything is set; an engine that has
+// the property but cannot apply a url() filter leaves it as it was, so
+// the readback is the detect. Either way nothing is drawn and the caller
+// paints the flat mesh.
 export function warpPalette(ctx: Context2D, flat: CanvasImageSource, warp: Warp, width: number): boolean {
+  if (!('filter' in ctx)) return false;
   const filter = warpFilterCss(warp, width);
   ctx.save();
   ctx.filter = filter;
-  const applied = 'filter' in ctx && ctx.filter === filter;
+  const applied = ctx.filter === filter;
   if (applied) ctx.drawImage(flat, 0, 0);
   ctx.restore();
   return applied;

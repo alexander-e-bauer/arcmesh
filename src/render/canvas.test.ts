@@ -164,4 +164,11 @@ describe('warpPalette', () => {
     expect(ops.some((op) => op.kind === 'drawImage')).toBe(false);
     expect(ctx.filter).toBe('none');
   });
+
+  it('refuses to touch an engine with no filter property at all', () => {
+    const { ctx, ops } = fakeContext();
+    delete (ctx as { filter?: string }).filter;
+    expect(warpPalette(ctx, flat, warp, 1920)).toBe(false);
+    expect(ops).toEqual([]);
+  });
 });

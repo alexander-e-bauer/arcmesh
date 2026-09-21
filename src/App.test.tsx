@@ -4,6 +4,7 @@ import App from './App';
 import { decodePalette, encodePalette } from './palette/codec';
 import { generatePalette } from './palette/harmony';
 import { oklchToHex } from './palette/oklch';
+import { paletteToCss } from './render/css';
 
 const SWATCH = { name: /^#[0-9a-f]{6}/ };
 
@@ -146,5 +147,39 @@ describe('App', () => {
     render(<App />);
     const toggle = screen.getByRole('button', { name: 'Download PNG' });
     expect(toggle.closest('.actions')).not.toBeNull();
+  });
+
+  it('toggles drift with a pressed button, carries it in the URL, and keeps the shown CSS still', async () => {
+    render(<App />);
+    await waitFor(() => expect(paletteInUrl()).not.toBeNull());
+    const button = screen.getByRole('button', { name: 'Drift' });
+    expect(button.closest('.actions')).not.toBeNull();
+    expect(button).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(button);
+    expect(button).toHaveAttribute('aria-pressed', 'true');
+    await waitFor(() => expect(paletteInUrl()!.drift).toBe(true));
+    expect(document.querySelector('style')!.textContent).toContain('@property --s0x');
+    const shown = document.querySelector('pre.css')!.textContent!;
+    expect(shown).not.toContain('@property');
+    expect(shown.startsWith('background-color: #')).toBe(true);
+
+    fireEvent.click(button);
+    expect(button).toHaveAttribute('aria-pressed', 'false');
+    await waitFor(() => expect(paletteInUrl()!.drift).toBe(false));
+  });
+
+  it('starts drifting when the link says so, and a reroll keeps it', async () => {
+    const palette = { ...generatePalette(31), drift: true };
+    window.history.replaceState(null, '', `#${encodePalette(palette)}`);
+    render(<App />);
+    const button = screen.getByRole('button', { name: 'Drift' });
+    expect(button).toHaveAttribute('aria-pressed', 'true');
+    expect(document.querySelector('pre.css')!.textContent).toBe(paletteToCss(decodePalette(encodePalette(palette))!));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Randomize' }));
+    await waitFor(() => expect(paletteInUrl()!.seed).not.toBe(31));
+    expect(paletteInUrl()!.drift).toBe(true);
+    expect(button).toHaveAttribute('aria-pressed', 'true');
   });
 });

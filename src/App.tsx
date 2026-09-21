@@ -62,16 +62,23 @@ export default function App() {
     setPalette((current) => moveStop(current, index, x, y));
   }
 
+  function toggleDrift() {
+    setPalette((current) => ({ ...current, drift: !current.drift }));
+  }
+
   const css = paletteToCss(palette);
 
   return (
     <main className="app">
       <header className="bar">
         <h1>arcmesh</h1>
-        <p className="hint">Space rerolls the unlocked stops. Click a swatch to lock it. Drag a blob to move it. Download PNG saves it at any size.</p>
+        <p className="hint">Space rerolls the unlocked stops. Click a swatch to lock it. Drag a blob to move it. Drift sets the blobs moving. Download PNG saves it at any size.</p>
         <div className="actions">
           <button type="button" onClick={reroll}>
             Randomize
+          </button>
+          <button type="button" aria-pressed={palette.drift} onClick={toggleDrift}>
+            Drift
           </button>
           <CopyButton text={css} />
           <DownloadPanel palette={palette} />

@@ -60,6 +60,10 @@ button:hover {
   border-color: #8a8d95;
 }
 
+.actions button[aria-pressed="true"] {
+  border-color: #fff;
+}
+
 .canvas {
   position: relative;
   aspect-ratio: 16 / 10;

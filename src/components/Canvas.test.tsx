@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { generatePalette } from '../palette/harmony';
 import { paletteToCss } from '../render/css';
+import { paletteToDriftCss } from '../render/drift';
 import { Canvas } from './Canvas';
 
 describe('Canvas', () => {
@@ -21,6 +22,18 @@ describe('Canvas', () => {
       expect(handle.parentElement).toBe(canvas);
       expect(mesh.compareDocumentPosition(handle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
+  });
+
+  it('applies the drift stylesheet to the mesh while the palette drifts, and the still block otherwise', () => {
+    const still = generatePalette(4, { count: 4 });
+    const moving = { ...still, drift: true };
+    const { container, rerender } = render(<Canvas palette={moving} onMove={vi.fn()} />);
+    const style = container.querySelector('style')!;
+    expect(style.textContent).toBe(paletteToDriftCss(moving, '.canvas > .mesh'));
+    expect(style.textContent).toContain('@property --s0x');
+    expect(screen.getAllByTestId('handle')).toHaveLength(4);
+    rerender(<Canvas palette={still} onMove={vi.fn()} />);
+    expect(style.textContent).toBe(`.canvas > .mesh {\n${paletteToCss(still)}\n}`);
   });
 
   it('reports drags as unit coordinates', () => {

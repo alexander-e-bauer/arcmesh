@@ -2,6 +2,7 @@ import { useRef, type PointerEvent } from 'react';
 import type { Palette } from '../palette/harmony';
 import { oklchToHex } from '../palette/oklch';
 import { paletteToCss } from '../render/css';
+import { paletteToDriftCss } from '../render/drift';
 
 interface CanvasProps {
   palette: Palette;
@@ -14,7 +15,9 @@ const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 // copied string and the rendered element never drift apart. It goes on a
 // child that fills the canvas rather than on the canvas itself, because
 // the warp is a filter and a filter warps an element's children; the
-// handles sit beside the mesh, above it, unwarped.
+// handles sit beside the mesh, above it, unwarped. While the palette
+// drifts the style element holds the drift stylesheet instead, for the
+// same selector; the copied CSS stays the still block.
 export function Canvas({ palette, onMove }: CanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragging = useRef<number | null>(null);
@@ -30,7 +33,7 @@ export function Canvas({ palette, onMove }: CanvasProps) {
 
   return (
     <div className="canvas" ref={canvasRef} data-testid="canvas">
-      <style>{`.canvas > .mesh {\n${paletteToCss(palette)}\n}`}</style>
+      <style>{palette.drift ? paletteToDriftCss(palette, '.canvas > .mesh') : `.canvas > .mesh {\n${paletteToCss(palette)}\n}`}</style>
       <div className="mesh" data-testid="mesh" />
       {palette.stops.map((stop, index) => (
         <span

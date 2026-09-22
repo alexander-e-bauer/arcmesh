@@ -54,8 +54,8 @@ function term(name: string, base: number, target: number): string {
 }
 
 // The position function for the drift stylesheet: an anchored layer's
-// center is its stop's custom properties plus its offset from the stop;
-// the lighting and the creases keep their literal positions.
+// center is its stop's custom properties plus its offset from the stop,
+// so a crease follows its stop; the lighting keeps its literal position.
 export function driftPosition(palette: Palette): Position {
   return (layer: Layer) => {
     if (layer.anchor === null) return literalPosition(layer);

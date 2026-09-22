@@ -21,7 +21,7 @@ describe('warpSvg', () => {
     expect(svg).toContain("<feFlood flood-color='#808080' result='g'/>");
     expect(svg).toContain("<feComposite in='nm' in2='g' operator='over' result='map'/>");
     expect(svg).toContain("<feDisplacementMap in='s' in2='map' scale='134.40' xChannelSelector='R' yChannelSelector='G' x='0%' y='0%' width='100%' height='100%'/>");
-    expect(WARP_OCTAVES).toBe(2);
+    expect(WARP_OCTAVES).toBe(1);
   });
 
   it('keeps the primitives in the order the engines accept: belt, noise, mask, map, displacement', () => {

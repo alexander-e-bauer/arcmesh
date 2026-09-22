@@ -124,13 +124,14 @@ export const SPOT_PROBABILITY = 0.3;
 export const SPOT_RADIUS = 0.08;
 export const SPOT_LIFT = 0.06;
 
-// Every mesh is warped; the strength runs from barely there to fluid. On
-// the sheets 0.06 only moves the crease edges, 0.10 makes the folds wave
-// and the blobs wobble, 0.14 reads as poured; past 3.5 noise periods
-// across the width it turns lumpy.
+// Every mesh is warped, gently: with one noise octave, 0.024 to 0.056 of
+// the width bends a crease edge into a long wave that still reads as an
+// arc, and keeps its shape as the crease drifts. The first range, 0.06 to
+// 0.14 with two octaves, looked poured on the sheets but squiggled the
+// creases. Past 3.5 noise periods across the width it turns lumpy.
 export const WARP_SEED_MAX = 9999;
 export const WARP_FREQUENCY: readonly [number, number] = [1.5, 3.5];
-export const WARP_STRENGTH: readonly [number, number] = [0.06, 0.14];
+export const WARP_STRENGTH: readonly [number, number] = [0.024, 0.056];
 
 export const CREASE_MAX = 2;
 // A crease is anchored to its stop. Its center sits along a random direction

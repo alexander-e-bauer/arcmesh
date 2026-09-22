@@ -6,7 +6,9 @@ import type { Warp } from '../palette/harmony';
 // (and they scale the displacement differently), so the CSS is written for
 // the preview's width and the canvas for its own, which makes the PNG the
 // preview scaled.
-export const WARP_OCTAVES = 2;
+// One octave: a second added small wiggles that turned the crease edges
+// squiggly, and made them bend differently as they drifted.
+export const WARP_OCTAVES = 1;
 export const WARP_REFERENCE_WIDTH = 960;
 
 function px(value: number): string {

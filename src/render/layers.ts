@@ -56,8 +56,8 @@ export interface Layer {
   cy: number;
   size: LayerSize;
   stops: GradientStop[];
-  // The stop this layer follows when the mesh drifts, or null for what
-  // stays put: the lighting, and the creases.
+  // The stop this layer follows when the mesh drifts, or null for the
+  // lighting, which stays put.
   anchor: number | null;
 }
 
@@ -131,10 +131,7 @@ export function creaseLayer(crease: Crease, stop: Stop): Layer {
     cx: crease.cx,
     cy: crease.cy,
     size: { rx: crease.r, ry: crease.r },
-    // A crease still belongs to its stop (a drag moves it), but it holds
-    // still while the mesh drifts: the warp's displacement is fixed to the
-    // canvas, so a crease sliding through it would bend its edge.
-    anchor: null,
+    anchor: crease.stop,
     stops: [
       { offset: 0, color, alpha: 0 },
       { offset: crease.t0, color, alpha: 0 },

@@ -72,7 +72,7 @@ export default function App() {
     <main className="app">
       <header className="bar">
         <h1>arcmesh</h1>
-        <p className="hint">Space rerolls the unlocked stops. Click a swatch to lock it. Drag a blob to move it. Drift sets the blobs moving. Download PNG saves it at any size.</p>
+        <p className="hint">Space rerolls the unlocked stops. Click a swatch to lock it. Drag a blob to move it. Drift sets the blobs moving. Download saves it as a PNG or an SVG at any size.</p>
         <div className="actions">
           <button type="button" onClick={reroll}>
             Randomize

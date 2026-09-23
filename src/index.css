@@ -152,6 +152,15 @@ button:hover {
   background: #1f2024;
 }
 
+.download-formats {
+  display: flex;
+  gap: 8px;
+}
+
+.download-formats button {
+  flex: 1;
+}
+
 .download-panel label {
   display: grid;
   gap: 4px;

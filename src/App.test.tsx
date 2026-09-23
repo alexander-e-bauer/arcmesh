@@ -145,7 +145,7 @@ describe('App', () => {
 
   it('offers a PNG download in the action bar', () => {
     render(<App />);
-    const toggle = screen.getByRole('button', { name: 'Download PNG' });
+    const toggle = screen.getByRole('button', { name: 'Download' });
     expect(toggle.closest('.actions')).not.toBeNull();
   });
 

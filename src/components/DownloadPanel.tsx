@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Palette } from '../palette/harmony';
 import { downloadPng } from '../render/canvas';
+import { downloadSvg } from '../render/download';
 
 export const PRESETS = [
   { label: '1920 x 1080 (HD)', width: 1920, height: 1080 },
@@ -22,26 +23,28 @@ export function parseSize(text: string, fallback: number): number {
   return Math.min(SIZE_MAX, Math.max(SIZE_MIN, Math.round(value)));
 }
 
-type Status = 'idle' | 'busy' | 'failed';
+// The PNG is rendered and the SVG is written, but both come from the same
+// two numbers: the mesh follows the canvas aspect, and the warp is written
+// for the width.
+export type Format = 'png' | 'svg';
 
-const LABELS: Record<Status, string> = {
-  idle: 'Download',
-  busy: 'Rendering',
-  failed: 'Download failed',
-};
+type Save = (palette: Palette, width: number, height: number) => Promise<void> | void;
 
 interface DownloadPanelProps {
   palette: Palette;
-  onDownload?: (palette: Palette, width: number, height: number) => Promise<void> | void;
+  onDownloadPng?: Save;
+  onDownloadSvg?: Save;
 }
 
-export function DownloadPanel({ palette, onDownload = downloadPng }: DownloadPanelProps) {
+export function DownloadPanel({ palette, onDownloadPng = downloadPng, onDownloadSvg = downloadSvg }: DownloadPanelProps) {
   const [open, setOpen] = useState(false);
   const [widthText, setWidthText] = useState(String(PRESETS[0].width));
   const [heightText, setHeightText] = useState(String(PRESETS[0].height));
   const [lastWidth, setLastWidth] = useState<number>(PRESETS[0].width);
   const [lastHeight, setLastHeight] = useState<number>(PRESETS[0].height);
-  const [status, setStatus] = useState<Status>('idle');
+  // Which format is in the middle of something, and how it went. Null once
+  // the file is on its way.
+  const [pending, setPending] = useState<{ format: Format; status: 'busy' | 'failed' } | null>(null);
 
   const width = parseSize(widthText, lastWidth);
   const height = parseSize(heightText, lastHeight);
@@ -67,23 +70,28 @@ export function DownloadPanel({ palette, onDownload = downloadPng }: DownloadPan
     setLastHeight(height);
   }
 
-  async function download() {
-    setStatus('busy');
+  async function download(format: Format) {
+    setPending({ format, status: 'busy' });
     try {
-      await onDownload(palette, width, height);
-      setStatus('idle');
+      await (format === 'png' ? onDownloadPng : onDownloadSvg)(palette, width, height);
+      setPending(null);
     } catch {
-      setStatus('failed');
+      setPending({ format, status: 'failed' });
     }
+  }
+
+  function label(format: Format): string {
+    if (pending?.format !== format) return format.toUpperCase();
+    return pending.status === 'busy' ? 'Rendering' : 'Failed';
   }
 
   return (
     <div className="download">
       <button type="button" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
-        Download PNG
+        Download
       </button>
       {open && (
-        <div className="download-panel" role="group" aria-label="PNG size">
+        <div className="download-panel" role="group" aria-label="Download options">
           <label>
             Size
             <select aria-label="Size" value={selectValue} onChange={(event) => choosePreset(event.target.value)}>
@@ -119,9 +127,14 @@ export function DownloadPanel({ palette, onDownload = downloadPng }: DownloadPan
               onBlur={settleHeight}
             />
           </label>
-          <button type="button" onClick={download} disabled={status === 'busy'}>
-            {LABELS[status]}
-          </button>
+          <div className="download-formats">
+            <button type="button" onClick={() => download('png')} disabled={pending?.status === 'busy'}>
+              {label('png')}
+            </button>
+            <button type="button" onClick={() => download('svg')} disabled={pending?.status === 'busy'}>
+              {label('svg')}
+            </button>
+          </div>
         </div>
       )}
     </div>

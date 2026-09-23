@@ -1,5 +1,6 @@
 import type { Palette, Warp } from '../palette/harmony';
 import { oklchToHex, oklchToSrgb, type Oklch } from '../palette/oklch';
+import { downloadBlob } from './download';
 import { GRAIN_BLEND, grainTile } from './grain';
 import { paletteToLayers, type Layer } from './layers';
 import { warpFilterCss } from './warp';
@@ -120,14 +121,5 @@ export async function renderPng(palette: Palette, width: number, height: number)
 
 export async function downloadPng(palette: Palette, width: number, height: number): Promise<void> {
   const blob = await renderPng(palette, width, height);
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = pngFileName(palette.seed, width, height);
-  // Attached because some engines ignore clicks on detached anchors, and the
-  // URL is revoked later because some read the blob after the click returns.
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  downloadBlob(blob, pngFileName(palette.seed, width, height));
 }

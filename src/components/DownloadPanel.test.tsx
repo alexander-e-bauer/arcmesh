@@ -21,8 +21,8 @@ describe('DownloadPanel', () => {
   const palette = generatePalette(5);
 
   it('opens with the default preset', () => {
-    render(<DownloadPanel palette={palette} onDownload={vi.fn()} />);
-    const toggle = screen.getByRole('button', { name: 'Download PNG' });
+    render(<DownloadPanel palette={palette} onDownloadPng={vi.fn()} onDownloadSvg={vi.fn()} />);
+    const toggle = screen.getByRole('button', { name: 'Download' });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
@@ -32,16 +32,16 @@ describe('DownloadPanel', () => {
   });
 
   it('writes both numbers when a preset is chosen', () => {
-    render(<DownloadPanel palette={palette} onDownload={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Download PNG' }));
+    render(<DownloadPanel palette={palette} onDownloadPng={vi.fn()} onDownloadSvg={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
     fireEvent.change(screen.getByRole('combobox', { name: 'Size' }), { target: { value: '2' } });
     expect(screen.getByRole('spinbutton', { name: 'Width' })).toHaveValue(3840);
     expect(screen.getByRole('spinbutton', { name: 'Height' })).toHaveValue(2160);
   });
 
   it('flips to Custom when a number is edited and clamps it on blur', () => {
-    render(<DownloadPanel palette={palette} onDownload={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Download PNG' }));
+    render(<DownloadPanel palette={palette} onDownloadPng={vi.fn()} onDownloadSvg={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
     const width = screen.getByRole('spinbutton', { name: 'Width' });
     fireEvent.change(width, { target: { value: '3000' } });
     expect(screen.getByRole('combobox', { name: 'Size' })).toHaveValue('custom');
@@ -50,20 +50,30 @@ describe('DownloadPanel', () => {
     expect(width).toHaveValue(16);
   });
 
-  it('downloads at the chosen size', async () => {
-    const onDownload = vi.fn().mockResolvedValue(undefined);
-    render(<DownloadPanel palette={palette} onDownload={onDownload} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Download PNG' }));
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Width' }), { target: { value: '3000' } });
+  it('renders the PNG at the chosen size', async () => {
+    const onDownloadPng = vi.fn().mockResolvedValue(undefined);
+    render(<DownloadPanel palette={palette} onDownloadPng={onDownloadPng} onDownloadSvg={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Download' }));
-    await waitFor(() => expect(onDownload).toHaveBeenCalledWith(palette, 3000, PRESETS[0].height));
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Width' }), { target: { value: '3000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'PNG' }));
+    await waitFor(() => expect(onDownloadPng).toHaveBeenCalledWith(palette, 3000, PRESETS[0].height));
   });
 
-  it('says so when the download fails', async () => {
-    const onDownload = vi.fn().mockRejectedValue(new Error('no canvas'));
-    render(<DownloadPanel palette={palette} onDownload={onDownload} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Download PNG' }));
+  it('writes the SVG from the same two fields', async () => {
+    const onDownloadSvg = vi.fn();
+    render(<DownloadPanel palette={palette} onDownloadPng={vi.fn()} onDownloadSvg={onDownloadSvg} />);
     fireEvent.click(screen.getByRole('button', { name: 'Download' }));
-    expect(await screen.findByRole('button', { name: 'Download failed' })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Height' }), { target: { value: '900' } });
+    fireEvent.click(screen.getByRole('button', { name: 'SVG' }));
+    await waitFor(() => expect(onDownloadSvg).toHaveBeenCalledWith(palette, PRESETS[0].width, 900));
+  });
+
+  it('says so on the button that failed, and leaves the other one alone', async () => {
+    const onDownloadPng = vi.fn().mockRejectedValue(new Error('no canvas'));
+    render(<DownloadPanel palette={palette} onDownloadPng={onDownloadPng} onDownloadSvg={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    fireEvent.click(screen.getByRole('button', { name: 'PNG' }));
+    expect(await screen.findByRole('button', { name: 'Failed' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'SVG' })).toBeInTheDocument();
   });
 });

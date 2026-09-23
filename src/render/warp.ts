@@ -19,7 +19,9 @@ function pct(value: number): string {
   return `${value.toFixed(2)}%`;
 }
 
-export function warpSvg(warp: Warp, width: number): string {
+// The filter element on its own: the CSS wraps it in an <svg> and a data
+// URI, the downloaded SVG carries it beside the gradients it warps.
+export function warpFilter(warp: Warp, width: number): string {
   const scale = warp.strength * width;
   // The farthest any pixel is pulled.
   const reach = scale / 2;
@@ -29,7 +31,6 @@ export function warpSvg(warp: Warp, width: number): string {
   const insetX = warp.strength * 50;
   const insetY = warp.strength * 100;
   return (
-    `<svg xmlns='http://www.w3.org/2000/svg'>` +
     `<filter id='w' x='-10%' y='-25%' width='120%' height='150%' color-interpolation-filters='sRGB'>` +
     // The belt: the source blurred outward at full alpha, under the source,
     // so a pull from past the box finds the local average color rather than
@@ -51,8 +52,12 @@ export function warpSvg(warp: Warp, width: number): string {
     `<feComposite in='nm' in2='g' operator='over' result='map'/>` +
     // Clipped to the box, so nothing paints outside the element.
     `<feDisplacementMap in='s' in2='map' scale='${px(scale)}' xChannelSelector='R' yChannelSelector='G' x='0%' y='0%' width='100%' height='100%'/>` +
-    `</filter></svg>`
+    `</filter>`
   );
+}
+
+export function warpSvg(warp: Warp, width: number): string {
+  return `<svg xmlns='http://www.w3.org/2000/svg'>${warpFilter(warp, width)}</svg>`;
 }
 
 // Unquoted, with everything that could end a url() percent-encoded, as the

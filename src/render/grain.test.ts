@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GRAIN_ALPHA, GRAIN_BLEND, GRAIN_SEED, GRAIN_TILE, grainCssLayer, grainPixels, grainSvg } from './grain';
+import { GRAIN_ALPHA, GRAIN_BLEND, GRAIN_SEED, GRAIN_TILE, grainCssLayer, grainFilter, grainPixels, grainSvg } from './grain';
 
 describe('grainSvg', () => {
   it('is a tile of desaturated fractal noise at constant alpha, filtered in sRGB', () => {
@@ -61,5 +61,13 @@ describe('grainPixels', () => {
 
   it('honors a smaller size', () => {
     expect(grainPixels(8)).toHaveLength(8 * 8 * 4);
+  });
+});
+
+describe('grainFilter', () => {
+  it('is the filter element on its own, so a standalone SVG can carry the same noise', () => {
+    expect(grainFilter().startsWith("<filter id='g'")).toBe(true);
+    expect(grainFilter().endsWith('</filter>')).toBe(true);
+    expect(grainSvg()).toContain(grainFilter());
   });
 });

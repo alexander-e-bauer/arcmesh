@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Warp } from '../palette/harmony';
-import { WARP_OCTAVES, WARP_REFERENCE_WIDTH, warpFilterCss, warpSvg } from './warp';
+import { WARP_OCTAVES, WARP_REFERENCE_WIDTH, warpFilter, warpFilterCss, warpSvg } from './warp';
 
 const warp: Warp = { seed: 7, frequency: 3, strength: 0.14 };
 
@@ -63,5 +63,13 @@ describe('warpFilterCss', () => {
   it('exposes the preview width the CSS is written for', () => {
     expect(WARP_REFERENCE_WIDTH).toBe(960);
     expect(warpFilterCss(warp, WARP_REFERENCE_WIDTH)).not.toBe(warpFilterCss(warp, 1920));
+  });
+});
+
+describe('warpFilter', () => {
+  it('is the filter element on its own, so a standalone SVG can carry the same warp', () => {
+    expect(warpFilter(warp, 960).startsWith("<filter id='w'")).toBe(true);
+    expect(warpFilter(warp, 960).endsWith('</filter>')).toBe(true);
+    expect(warpSvg(warp, 960)).toBe(`<svg xmlns='http://www.w3.org/2000/svg'>${warpFilter(warp, 960)}</svg>`);
   });
 });

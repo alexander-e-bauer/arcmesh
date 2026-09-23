@@ -12,17 +12,25 @@ export const GRAIN_BLEND = 'soft-light';
 // Fixed so the PNG for a palette is the same file every time.
 export const GRAIN_SEED = 0x67726e;
 
-// The CSS side: fractal noise, desaturated, at a constant alpha. The filter
+// The noise itself: fractal, desaturated, at a constant alpha. The filter
 // runs in sRGB on purpose; in the default linearRGB the mid-grey of the
 // noise lands near 0.73 in sRGB and soft-light then lightens everything.
-export function grainSvg(): string {
+// The CSS wraps it in a tile, the downloaded SVG lays it over the mesh.
+export function grainFilter(): string {
   return (
-    `<svg xmlns='http://www.w3.org/2000/svg' width='${GRAIN_TILE}' height='${GRAIN_TILE}'>` +
     `<filter id='g' color-interpolation-filters='sRGB'>` +
     `<feTurbulence type='fractalNoise' baseFrequency='${GRAIN_FREQUENCY}' numOctaves='${GRAIN_OCTAVES}' stitchTiles='stitch'/>` +
     `<feColorMatrix type='saturate' values='0'/>` +
     `<feComponentTransfer><feFuncA type='linear' slope='0' intercept='${GRAIN_ALPHA}'/></feComponentTransfer>` +
-    `</filter>` +
+    `</filter>`
+  );
+}
+
+// The tile the CSS repeats: the filter over one square.
+export function grainSvg(): string {
+  return (
+    `<svg xmlns='http://www.w3.org/2000/svg' width='${GRAIN_TILE}' height='${GRAIN_TILE}'>` +
+    grainFilter() +
     `<rect width='100%' height='100%' filter='url(#g)'/>` +
     `</svg>`
   );
